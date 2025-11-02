@@ -2,6 +2,7 @@
 using System.Data;
 using System.Data.OleDb;
 using System.IO;
+using System.Linq;
 using System.Windows;
 
 namespace biblioteka
@@ -28,22 +29,38 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                string query = "SELECT Id, Title, Author, Yearr, Genre, Description FROM Books ORDER BY Id";
-                OleDbDataAdapter adapter = new OleDbDataAdapter(query, connection);
-                DataTable table = new DataTable();
-                adapter.Fill(table);
 
-                BooksDataGrid.ItemsSource = table.DefaultView;
+                // 1. Загружаем все книги
+                string booksQuery = "SELECT ID, Title, Yearr, Genre, Description FROM Books ORDER BY ID";
+                OleDbDataAdapter booksAdapter = new OleDbDataAdapter(booksQuery, connection);
+                DataTable booksTable = new DataTable();
+                booksAdapter.Fill(booksTable);
 
-                if (BooksDataGrid.Columns.Count > 0)
+                // Добавляем колонку Authors для отображения
+                booksTable.Columns.Add("Authors", typeof(string));
+
+                // 2. Загружаем связи книги-авторы
+                string authorsQuery = @"
+            SELECT BA.BookID, A.FullName
+            FROM BookAuthors BA
+            INNER JOIN Authors A ON BA.AuthorID = A.ID";
+                OleDbDataAdapter authorsAdapter = new OleDbDataAdapter(authorsQuery, connection);
+                DataTable authorsTable = new DataTable();
+                authorsAdapter.Fill(authorsTable);
+
+                // 3. Формируем строку авторов для каждой книги
+                foreach (DataRow bookRow in booksTable.Rows)
                 {
-                    BooksDataGrid.Columns[0].Header = "ID";
-                    BooksDataGrid.Columns[1].Header = "Название книги";
-                    BooksDataGrid.Columns[2].Header = "Автор";
-                    BooksDataGrid.Columns[3].Header = "Год издания";
-                    BooksDataGrid.Columns[4].Header = "Жанр";
-                    BooksDataGrid.Columns[5].Header = "Описание";
+                    int bookId = Convert.ToInt32(bookRow["ID"]);
+                    var authors = authorsTable.AsEnumerable()
+                        .Where(r => Convert.ToInt32(r["BookID"]) == bookId)
+                        .Select(r => r["FullName"].ToString())
+                        .ToArray();
+                    bookRow["Authors"] = string.Join(", ", authors);
                 }
+
+                // 4. Привязываем к DataGrid
+                BooksDataGrid.ItemsSource = booksTable.DefaultView;
             }
             catch (Exception ex)
             {
@@ -55,33 +72,19 @@ namespace biblioteka
             }
         }
 
+
         private void AddBook_Click(object sender, RoutedEventArgs e)
         {
-            AddBookWindow addWindow = new AddBookWindow();
-            if (addWindow.ShowDialog() == true)
+            try
             {
-                try
-                {
-                    connection.Open();
-                    string query = "INSERT INTO Books ([Title], [Author], [Yearr], [Genre], [Description]) VALUES (?, ?, ?, ?, ?)";
-                    OleDbCommand cmd = new OleDbCommand(query, connection);
-                    cmd.Parameters.AddWithValue("?", addWindow.NewBook.Title);
-                    cmd.Parameters.AddWithValue("?", addWindow.NewBook.Author);
-                    cmd.Parameters.AddWithValue("?", addWindow.NewBook.Year);
-                    cmd.Parameters.AddWithValue("?", addWindow.NewBook.Genre);
-                    cmd.Parameters.AddWithValue("?", addWindow.NewBook.Description);
-                    cmd.ExecuteNonQuery();
-                    MessageBox.Show("Книга успешно добавлена!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка при добавлении книги: " + ex.Message);
-                }
-                finally
-                {
-                    connection.Close();
-                    LoadBooks();
-                }
+                AddBookWindow addWindow = new AddBookWindow(connection);
+                addWindow.ShowDialog();
+
+                LoadBooks();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка при открытии окна добавления книги: " + ex.Message);
             }
         }
 
@@ -89,13 +92,21 @@ namespace biblioteka
         {
             if (BooksDataGrid.SelectedItem is DataRowView row)
             {
-                int id = Convert.ToInt32(row["Id"]);
+                int id = Convert.ToInt32(row["ID"]);
                 try
                 {
                     connection.Open();
-                    OleDbCommand cmd = new OleDbCommand("DELETE FROM Books WHERE [Id] = ?", connection);
-                    cmd.Parameters.AddWithValue("?", id);
-                    cmd.ExecuteNonQuery();
+
+                    // Удаляем связи с авторами
+                    OleDbCommand deleteLinks = new OleDbCommand("DELETE FROM BookAuthors WHERE BookID = ?", connection);
+                    deleteLinks.Parameters.AddWithValue("?", id);
+                    deleteLinks.ExecuteNonQuery();
+
+                    // Удаляем книгу
+                    OleDbCommand deleteBook = new OleDbCommand("DELETE FROM Books WHERE ID = ?", connection);
+                    deleteBook.Parameters.AddWithValue("?", id);
+                    deleteBook.ExecuteNonQuery();
+
                     MessageBox.Show("Книга успешно удалена!");
                 }
                 catch (Exception ex)
@@ -124,6 +135,12 @@ namespace biblioteka
                 LoadBooks();
                 MessageBox.Show("Операция завершена.");
             }
+        }
+
+        private void ViewReaders_Click(object sender, RoutedEventArgs e)
+        {
+            ReadersInfoWindow readersWindow = new ReadersInfoWindow();
+            readersWindow.ShowDialog();
         }
     }
 }

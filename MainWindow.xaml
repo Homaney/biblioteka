@@ -29,13 +29,20 @@
                     Width="150" Height="40" Margin="5"
                     Background="#4CAF50" Foreground="White" FontWeight="Bold"
                     BorderThickness="0" Cursor="Hand"/>
+
             <Button Content="Удалить книгу" Click="DeleteBook_Click"
                     Width="150" Height="40" Margin="5"
                     Background="#E53935" Foreground="White" FontWeight="Bold"
                     BorderThickness="0" Cursor="Hand"/>
+
             <Button Content="Выдать книгу" Click="IssueBook_Click"
                     Width="150" Height="40" Margin="5"
                     Background="#2196F3" Foreground="White" FontWeight="Bold"
+                    BorderThickness="0" Cursor="Hand"/>
+
+            <Button Content="Читатели" Click="ViewReaders_Click"
+                    Width="150" Height="40" Margin="5"
+                    Background="#9C27B0" Foreground="White" FontWeight="Bold"
                     BorderThickness="0" Cursor="Hand"/>
         </StackPanel>
 
@@ -58,9 +65,9 @@
                   HorizontalScrollBarVisibility="Auto"
                   VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
+                <DataGridTextColumn Header="ID" Binding="{Binding ID}" Width="50"/>
                 <DataGridTextColumn Header="Название книги" Binding="{Binding Title}" Width="*"/>
-                <DataGridTextColumn Header="Автор" Binding="{Binding Author}" Width="150"/>
+                <DataGridTextColumn Header="Авторы" Binding="{Binding Authors}" Width="200"/>
                 <DataGridTextColumn Header="Год издания" Binding="{Binding Yearr}" Width="100"/>
                 <DataGridTextColumn Header="Жанр" Binding="{Binding Genre}" Width="120"/>
                 <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="*"/>

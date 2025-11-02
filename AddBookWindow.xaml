@@ -1,43 +1,116 @@
 ﻿<Window x:Class="biblioteka.AddBookWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Добавить книгу" Height="479" Width="400"
-        WindowStartupLocation="CenterScreen" Background="#fafafa">
+        Title="Добавить книгу"
+        Height="681" Width="420"
+        WindowStartupLocation="CenterScreen"
+        Background="#f0f2f5"
+        AllowsTransparency="False">
 
-    <Grid Margin="20,20,20,47">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Border Margin="20" Padding="25"
+            Background="White" CornerRadius="15"
+            BorderBrush="#ddd" BorderThickness="1"
+            Effect="{DynamicResource DropShadow}">
+        <StackPanel Margin="0,0,0,-26">
 
-        <StackPanel>
-            <TextBlock Text="Название книги:" FontWeight="Bold" Margin="0 5"/>
-            <TextBox x:Name="TitleTextBox" Height="30" Padding="5"/>
+            <TextBlock Text="Добавление книги"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#333"
+                       HorizontalAlignment="Center"
+                       Margin="0 0 0 20"/>
 
-            <TextBlock Text="Автор:" FontWeight="Bold" Margin="0 5"/>
-            <TextBox x:Name="AuthorTextBox" Height="30" Padding="5"/>
+            <!-- Название -->
+            <TextBlock Text="Название книги:" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="TitleBox"
+                     Margin="0 5 0 10"
+                     Padding="6"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"
+                     Height="28"
+                     ToolTip="Введите название книги"/>
 
-            <TextBlock Text="Год издания:" FontWeight="Bold" Margin="0 5"/>
-            <TextBox x:Name="YearTextBox" Height="30" Padding="5"/>
+            <!-- Авторы -->
+            <TextBlock Text="Авторы:" FontWeight="Bold" Foreground="#555"/>
+            <ComboBox x:Name="AuthorBox"
+                      IsEditable="True"
+                      StaysOpenOnEdit="True"
+                      IsTextSearchEnabled="True"
+                      Margin="0 5 0 5"
+                      Padding="4"
+                      Height="30"
+                      BorderBrush="#ccc"
+                      BorderThickness="1"
+                      Background="#fafafa"
+                      ToolTip="Введите или выберите автора"/>
+            <Button Content="Добавить автора"
+                    Width="120" Height="28"
+                    Margin="0 0 0 5"
+                    Click="AddAuthor_Click"/>
+            <ListBox x:Name="SelectedAuthorsList"
+                     Height="100"
+                     BorderBrush="#DDD"
+                     BorderThickness="1"/>
 
-            <TextBlock Text="Жанр:" FontWeight="Bold" Margin="0 5"/>
-            <TextBox x:Name="GenreTextBox" Height="30" Padding="5"/>
+            <!-- Жанр -->
+            <TextBlock Text="Жанр:" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="GenreBox"
+                     Margin="0 5 0 10"
+                     Padding="6"
+                     Height="28"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"
+                     ToolTip="Введите жанр книги"/>
 
-            <TextBlock Text="Описание:" FontWeight="Bold" Margin="0 5"/>
-            <TextBox x:Name="DescriptionTextBox" Height="63" TextWrapping="Wrap" AcceptsReturn="True" Padding="5"/>
+            <!-- Год -->
+            <TextBlock Text="Год издания:" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="YearBox"
+                     Margin="0 5 0 10"
+                     Padding="6"
+                     Height="28"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"
+                     ToolTip="Введите год издания"/>
+
+            <!-- Описание -->
+            <TextBlock Text="Описание (необязательно):" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="DescriptionBox"
+                     Margin="0 5 0 20"
+                     Padding="6"
+                     AcceptsReturn="True"
+                     Height="66"
+                     TextWrapping="Wrap"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"/>
+
+            <!-- Кнопка -->
+            <Button Content="Добавить книгу"
+                    Foreground="White"
+                    FontWeight="Bold"
+                    Cursor="Hand"
+                    Height="38"
+                    Width="180"
+                    HorizontalAlignment="Center"
+                    BorderThickness="0"
+                    Click="AddBook_Click">
+                <Button.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0078D7" Offset="0"/>
+                        <GradientStop Color="#00A4FF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Button.Background>
+                <Button.Effect>
+                    <DropShadowEffect ShadowDepth="2" BlurRadius="8" Opacity="0.4"/>
+                </Button.Effect>
+            </Button>
         </StackPanel>
+    </Border>
 
-        <Button Content="Сохранить"
-                Grid.Row="1"
-                Width="150"
-                Height="40"
-                Background="#4CAF50"
-                Foreground="White"
-                FontWeight="Bold"
-                HorizontalAlignment="Center"
-                Margin="0 15 0 0"
-                BorderThickness="0"
-                Cursor="Hand"
-                Click="SaveButton_Click"/>
-    </Grid>
+    <Window.Resources>
+        <DropShadowEffect x:Key="DropShadow" BlurRadius="15" ShadowDepth="2" Opacity="0.3"/>
+    </Window.Resources>
 </Window>

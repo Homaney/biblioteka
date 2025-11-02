@@ -35,6 +35,8 @@ namespace biblioteka
                 BookComboBox.ItemsSource = table.DefaultView;
                 BookComboBox.DisplayMemberPath = "Title";
                 BookComboBox.SelectedValuePath = "Id";
+                if (BookComboBox.Items.Count > 0)
+                    BookComboBox.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
@@ -57,6 +59,8 @@ namespace biblioteka
                 ReaderComboBox.ItemsSource = table.DefaultView;
                 ReaderComboBox.DisplayMemberPath = "FullName";
                 ReaderComboBox.SelectedValuePath = "FullName";
+                if (ReaderComboBox.Items.Count > 0)
+                    ReaderComboBox.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
@@ -72,7 +76,6 @@ namespace biblioteka
         {
             AddReaderWindow addReaderWindow = new AddReaderWindow();
             addReaderWindow.Owner = this;
-
             if (addReaderWindow.ShowDialog() == true)
             {
                 LoadReaders();
@@ -82,52 +85,42 @@ namespace biblioteka
 
         private void IssueButton_Click(object sender, RoutedEventArgs e)
         {
-            // Проверка выбранной книги
-            if (BookComboBox.SelectedItem == null ||
-                string.IsNullOrWhiteSpace(((DataRowView)BookComboBox.SelectedItem)["Title"].ToString()))
+            if (BookComboBox.SelectedItem == null || ReaderComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Выберите книгу для выдачи!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Выберите книгу и читателя!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // Проверка выбранного читателя
-            if (ReaderComboBox.SelectedItem == null ||
-                string.IsNullOrWhiteSpace(((DataRowView)ReaderComboBox.SelectedItem)["FullName"].ToString()))
+            if (BookComboBox.SelectedItem is DataRowView bookRow &&
+                ReaderComboBox.SelectedItem is DataRowView readerRow)
             {
-                MessageBox.Show("Выберите читателя для выдачи!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                int bookId = Convert.ToInt32(bookRow["Id"]);
+                string readerName = readerRow["FullName"].ToString();
+                DateTime issueDate = IssueDatePicker.SelectedDate ?? DateTime.Now;
+                DateTime returnDate = ReturnDatePicker.SelectedDate ?? DateTime.Now;
 
-            // Всё ок, получаем данные
-            var bookRow = (DataRowView)BookComboBox.SelectedItem;
-            var readerRow = (DataRowView)ReaderComboBox.SelectedItem;
+                try
+                {
+                    connection.Open();
+                    string query = "INSERT INTO IssuedBooks ([BookID], [ReaderName], [IssueDate], [ReturnDate]) VALUES (?, ?, ?, ?)";
+                    OleDbCommand cmd = new OleDbCommand(query, connection);
+                    cmd.Parameters.AddWithValue("?", bookId.ToString()); // BookID как текст
+                    cmd.Parameters.AddWithValue("?", readerName);
+                    cmd.Parameters.AddWithValue("?", issueDate);
+                    cmd.Parameters.AddWithValue("?", returnDate);
+                    cmd.ExecuteNonQuery();
 
-            int bookId = Convert.ToInt32(bookRow["Id"]);
-            string readerName = readerRow["FullName"].ToString();
-            DateTime issueDate = IssueDatePicker.SelectedDate ?? DateTime.Now;
-            DateTime returnDate = ReturnDatePicker.SelectedDate ?? DateTime.Now;
-
-            try
-            {
-                connection.Open();
-                string query = "INSERT INTO IssuedBooks ([BookID], [ReaderName], [IssueDate], [ReturnDate]) VALUES (?, ?, ?, ?)";
-                OleDbCommand cmd = new OleDbCommand(query, connection);
-                cmd.Parameters.AddWithValue("?", bookId);
-                cmd.Parameters.AddWithValue("?", readerName);
-                cmd.Parameters.AddWithValue("?", issueDate);
-                cmd.Parameters.AddWithValue("?", returnDate);
-                cmd.ExecuteNonQuery();
-
-                MessageBox.Show("Книга успешно выдана!");
-                this.DialogResult = true;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка при выдаче книги: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                connection.Close();
+                    MessageBox.Show("Книга успешно выдана!");
+                    this.DialogResult = true;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Ошибка при выдаче книги: " + ex.Message);
+                }
+                finally
+                {
+                    connection.Close();
+                }
             }
         }
     }
