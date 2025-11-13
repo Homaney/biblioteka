@@ -32,10 +32,12 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT ID, FullName, Phone FROM Readers ORDER BY FullName", connection);
-                DataTable table = new DataTable();
-                adapter.Fill(table);
-                ReadersList.ItemsSource = table.DefaultView;
+                using (OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT ID, FullName, Phone FROM Readers ORDER BY FullName", connection))
+                {
+                    DataTable table = new DataTable();
+                    adapter.Fill(table);
+                    ReadersList.ItemsSource = table.DefaultView;
+                }
             }
             catch (Exception ex)
             {
@@ -43,7 +45,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
@@ -54,14 +57,11 @@ namespace biblioteka
                 string readerName = readerRow["FullName"].ToString();
                 FullNameText.Text = readerName;
                 PhoneText.Text = "Телефон: " + readerRow["Phone"].ToString();
-
                 LoadIssuedBooks(readerName);
 
-                // Плавное появление карточки
                 ReaderCard.Visibility = Visibility.Visible;
                 DoubleAnimation fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
                 ReaderCard.BeginAnimation(OpacityProperty, fadeIn);
-
                 SelectHint.Visibility = Visibility.Collapsed;
             }
         }
@@ -71,31 +71,29 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                OleDbDataAdapter adapter = new OleDbDataAdapter(
+                using (OleDbDataAdapter adapter = new OleDbDataAdapter(
                     "SELECT BookID, IssueDate, ReturnDate FROM IssuedBooks WHERE ReaderName = ?",
-                    connection);
-                adapter.SelectCommand.Parameters.AddWithValue("?", readerName);
-
-                DataTable table = new DataTable();
-                adapter.Fill(table);
-
-                var books = new List<dynamic>();
-                foreach (DataRow row in table.Rows)
+                    connection))
                 {
-                    DateTime issue = Convert.ToDateTime(row["IssueDate"]);
-                    string returnStr = row["ReturnDate"] != DBNull.Value ? Convert.ToDateTime(row["ReturnDate"]).ToShortDateString() : "ещё не сдано";
+                    adapter.SelectCommand.Parameters.Add("?", OleDbType.VarChar).Value = readerName;
+                    DataTable table = new DataTable();
+                    adapter.Fill(table);
 
-                    bool overdue = row["ReturnDate"] != DBNull.Value && Convert.ToDateTime(row["ReturnDate"]) < DateTime.Now;
-
-                    books.Add(new
+                    var books = new List<dynamic>();
+                    foreach (DataRow row in table.Rows)
                     {
-                        BookTitle = row["BookID"].ToString(),
-                        Status = $"Выдано: {issue.ToShortDateString()}, Возврат: {returnStr}, {(overdue ? "Просрочена" : "В срок")}",
-                        StatusColor = new SolidColorBrush(overdue ? Colors.Red : Colors.Green)
-                    });
+                        DateTime issue = Convert.ToDateTime(row["IssueDate"]);
+                        string returnStr = row["ReturnDate"] != DBNull.Value ? Convert.ToDateTime(row["ReturnDate"]).ToShortDateString() : "ещё не сдано";
+                        bool overdue = row["ReturnDate"] != DBNull.Value && Convert.ToDateTime(row["ReturnDate"]) < DateTime.Now;
+                        books.Add(new
+                        {
+                            BookTitle = row["BookID"].ToString(),
+                            Status = $"Выдано: {issue.ToShortDateString()}, Возврат: {returnStr}, {(overdue ? "Просрочена" : "В срок")}",
+                            StatusColor = new SolidColorBrush(overdue ? Colors.Red : Colors.Green)
+                        });
+                    }
+                    BooksList.ItemsSource = books;
                 }
-
-                BooksList.ItemsSource = books;
             }
             catch (Exception ex)
             {
@@ -103,7 +101,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
     }

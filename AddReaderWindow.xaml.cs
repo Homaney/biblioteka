@@ -4,6 +4,7 @@ using System.Data.OleDb;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace biblioteka
 {
@@ -23,11 +24,10 @@ namespace biblioteka
             connection = new OleDbConnection($@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={dbPath};Persist Security Info=False;");
         }
 
-        private void PhoneTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        private void PhoneTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            string pattern = @"^\+375\d{9}$"; // строго +375XXXXXXXXX
+            string pattern = @"^\+375\d{9}$";
             string input = PhoneTextBox.Text.Trim();
-
             if (string.IsNullOrEmpty(input))
             {
                 PhoneWarningTextBlock.Text = "Введите номер в формате +375XXXXXXXXX";
@@ -50,14 +50,12 @@ namespace biblioteka
             string fullName = (FullNameTextBox.Text ?? "").Trim();
             string phone = (PhoneTextBox.Text ?? "").Trim();
 
-            // Проверка ФИО
             if (string.IsNullOrWhiteSpace(fullName))
             {
                 MessageBox.Show("Введите ФИО читателя!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // Проверка номера телефона в формате +375XXXXXXXXX
             if (!Regex.IsMatch(phone, @"^\+375\d{9}$"))
             {
                 MessageBox.Show("Введите номер в формате +375XXXXXXXXX!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -68,11 +66,10 @@ namespace biblioteka
             {
                 connection.Open();
 
-                // Проверка на дубликат по ФИО и номеру
                 using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM Readers WHERE FullName = ? AND Phone = ?", connection))
                 {
-                    checkCmd.Parameters.AddWithValue("?", fullName);
-                    checkCmd.Parameters.AddWithValue("?", phone);
+                    checkCmd.Parameters.Add("?", OleDbType.VarChar).Value = fullName;
+                    checkCmd.Parameters.Add("?", OleDbType.VarChar).Value = phone;
                     int count = Convert.ToInt32(checkCmd.ExecuteScalar());
                     if (count > 0)
                     {
@@ -81,11 +78,10 @@ namespace biblioteka
                     }
                 }
 
-                // Вставка нового читателя
                 using (var insertCmd = new OleDbCommand("INSERT INTO Readers (FullName, Phone) VALUES (?, ?)", connection))
                 {
-                    insertCmd.Parameters.AddWithValue("?", fullName);
-                    insertCmd.Parameters.AddWithValue("?", phone);
+                    insertCmd.Parameters.Add("?", OleDbType.VarChar).Value = fullName;
+                    insertCmd.Parameters.Add("?", OleDbType.VarChar).Value = phone;
                     insertCmd.ExecuteNonQuery();
                 }
 
@@ -98,7 +94,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
     }

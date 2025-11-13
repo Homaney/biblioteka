@@ -29,14 +29,16 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Id, Title FROM Books ORDER BY Title", connection);
-                DataTable table = new DataTable();
-                adapter.Fill(table);
-                BookComboBox.ItemsSource = table.DefaultView;
-                BookComboBox.DisplayMemberPath = "Title";
-                BookComboBox.SelectedValuePath = "Id";
-                if (BookComboBox.Items.Count > 0)
-                    BookComboBox.SelectedIndex = 0;
+                using (OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Identifier, Title FROM Books ORDER BY Title", connection))
+                {
+                    DataTable table = new DataTable();
+                    adapter.Fill(table);
+                    BookComboBox.ItemsSource = table.DefaultView;
+                    BookComboBox.DisplayMemberPath = "Title";
+                    BookComboBox.SelectedValuePath = "Identifier";
+                    if (BookComboBox.Items.Count > 0)
+                        BookComboBox.SelectedIndex = 0;
+                }
             }
             catch (Exception ex)
             {
@@ -44,7 +46,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
@@ -53,14 +56,16 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT ID, FullName FROM Readers ORDER BY FullName", connection);
-                DataTable table = new DataTable();
-                adapter.Fill(table);
-                ReaderComboBox.ItemsSource = table.DefaultView;
-                ReaderComboBox.DisplayMemberPath = "FullName";
-                ReaderComboBox.SelectedValuePath = "FullName";
-                if (ReaderComboBox.Items.Count > 0)
-                    ReaderComboBox.SelectedIndex = 0;
+                using (OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT ID, FullName FROM Readers ORDER BY FullName", connection))
+                {
+                    DataTable table = new DataTable();
+                    adapter.Fill(table);
+                    ReaderComboBox.ItemsSource = table.DefaultView;
+                    ReaderComboBox.DisplayMemberPath = "FullName";
+                    ReaderComboBox.SelectedValuePath = "FullName";
+                    if (ReaderComboBox.Items.Count > 0)
+                        ReaderComboBox.SelectedIndex = 0;
+                }
             }
             catch (Exception ex)
             {
@@ -68,7 +73,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
@@ -94,7 +100,7 @@ namespace biblioteka
             if (BookComboBox.SelectedItem is DataRowView bookRow &&
                 ReaderComboBox.SelectedItem is DataRowView readerRow)
             {
-                int bookId = Convert.ToInt32(bookRow["Id"]);
+                int bookId = Convert.ToInt32(bookRow["Identifier"]);
                 string readerName = readerRow["FullName"].ToString();
                 DateTime issueDate = IssueDatePicker.SelectedDate ?? DateTime.Now;
                 DateTime returnDate = ReturnDatePicker.SelectedDate ?? DateTime.Now;
@@ -103,13 +109,14 @@ namespace biblioteka
                 {
                     connection.Open();
                     string query = "INSERT INTO IssuedBooks ([BookID], [ReaderName], [IssueDate], [ReturnDate]) VALUES (?, ?, ?, ?)";
-                    OleDbCommand cmd = new OleDbCommand(query, connection);
-                    cmd.Parameters.AddWithValue("?", bookId.ToString()); // BookID как текст
-                    cmd.Parameters.AddWithValue("?", readerName);
-                    cmd.Parameters.AddWithValue("?", issueDate);
-                    cmd.Parameters.AddWithValue("?", returnDate);
-                    cmd.ExecuteNonQuery();
-
+                    using (OleDbCommand cmd = new OleDbCommand(query, connection))
+                    {
+                        cmd.Parameters.Add("?", OleDbType.Integer).Value = bookId;
+                        cmd.Parameters.Add("?", OleDbType.VarChar).Value = readerName;
+                        cmd.Parameters.Add("?", OleDbType.Date).Value = issueDate;
+                        cmd.Parameters.Add("?", OleDbType.Date).Value = returnDate;
+                        cmd.ExecuteNonQuery();
+                    }
                     MessageBox.Show("Книга успешно выдана!");
                     this.DialogResult = true;
                 }
@@ -119,7 +126,8 @@ namespace biblioteka
                 }
                 finally
                 {
-                    connection.Close();
+                    if (connection.State == ConnectionState.Open)
+                        connection.Close();
                 }
             }
         }

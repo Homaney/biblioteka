@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.OleDb;
-using System.IO;
 using System.Windows;
 
 namespace biblioteka
@@ -24,12 +24,14 @@ namespace biblioteka
             try
             {
                 connection.Open();
-                OleDbCommand cmd = new OleDbCommand("SELECT FullName FROM Authors ORDER BY FullName", connection);
-                OleDbDataReader reader = cmd.ExecuteReader();
-                existingAuthors.Clear();
-                while (reader.Read())
+                using (OleDbCommand cmd = new OleDbCommand("SELECT FullName FROM Authors ORDER BY FullName", connection))
+                using (OleDbDataReader reader = cmd.ExecuteReader())
                 {
-                    existingAuthors.Add(reader.GetString(0));
+                    existingAuthors.Clear();
+                    while (reader.Read())
+                    {
+                        existingAuthors.Add(reader.GetString(0));
+                    }
                 }
                 AuthorBox.ItemsSource = existingAuthors;
             }
@@ -39,7 +41,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
@@ -58,13 +61,21 @@ namespace biblioteka
         private void AddBook_Click(object sender, RoutedEventArgs e)
         {
             string title = TitleBox.Text.Trim();
-            string genre = GenreBox.Text.Trim();
-            string year = YearBox.Text.Trim();
+            string razdel = RazdelBox.Text.Trim();
+            string yearStr = YearBox.Text.Trim();
             string description = DescriptionBox.Text.Trim();
+            string identifierStr = IdentifierBox.Text.Trim(); // ← Твоё новое поле в XAML
+            string quantityStr = QuantityBox.Text.Trim(); // ← Твоё новое поле в XAML
 
-            if (string.IsNullOrEmpty(title) || selectedAuthors.Count == 0 || string.IsNullOrEmpty(genre) || string.IsNullOrEmpty(year))
+            if (string.IsNullOrEmpty(title) || selectedAuthors.Count == 0 || string.IsNullOrEmpty(razdel) || string.IsNullOrEmpty(yearStr) || string.IsNullOrEmpty(identifierStr) || string.IsNullOrEmpty(quantityStr))
             {
-                MessageBox.Show("Заполните все поля кроме описания!");
+                MessageBox.Show("Заполните все поля!");
+                return;
+            }
+
+            if (!int.TryParse(yearStr, out int year) || !int.TryParse(identifierStr, out int identifier) || !int.TryParse(quantityStr, out int quantity))
+            {
+                MessageBox.Show("ID, год и количество должны быть числами!");
                 return;
             }
 
@@ -72,46 +83,65 @@ namespace biblioteka
             {
                 connection.Open();
 
-                // 1. Добавляем книгу
-                OleDbCommand addBookCmd = new OleDbCommand("INSERT INTO Books (Title, Yearr, Genre, Description) VALUES (?, ?, ?, ?)", connection);
-                addBookCmd.Parameters.AddWithValue("?", title);
-                addBookCmd.Parameters.AddWithValue("?", year);
-                addBookCmd.Parameters.AddWithValue("?", genre);
-                addBookCmd.Parameters.AddWithValue("?", description);
-                addBookCmd.ExecuteNonQuery();
+                using (OleDbCommand checkCmd = new OleDbCommand("SELECT COUNT(*) FROM Books WHERE Identifier = ?", connection))
+                {
+                    checkCmd.Parameters.Add("?", OleDbType.Integer).Value = identifier;
+                    if (Convert.ToInt32(checkCmd.ExecuteScalar()) > 0)
+                    {
+                        MessageBox.Show("Книга с таким ID уже существует!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
 
-                OleDbCommand getBookIdCmd = new OleDbCommand("SELECT @@IDENTITY", connection);
-                int bookId = Convert.ToInt32(getBookIdCmd.ExecuteScalar());
+                using (OleDbCommand addBookCmd = new OleDbCommand("INSERT INTO Books (Identifier, Title, Yearr, Razdel, Description, Quantity) VALUES (?, ?, ?, ?, ?, ?)", connection))
+                {
+                    addBookCmd.Parameters.Add("?", OleDbType.Integer).Value = identifier;
+                    addBookCmd.Parameters.Add("?", OleDbType.VarChar).Value = title;
+                    addBookCmd.Parameters.Add("?", OleDbType.Integer).Value = year;
+                    addBookCmd.Parameters.Add("?", OleDbType.VarChar).Value = razdel;
+                    addBookCmd.Parameters.Add("?", OleDbType.VarChar).Value = description;
+                    addBookCmd.Parameters.Add("?", OleDbType.Integer).Value = quantity;
+                    addBookCmd.ExecuteNonQuery();
+                }
 
-                // 2. Добавляем авторов и связи
+                int bookId = identifier;
+
                 foreach (var authorName in selectedAuthors)
                 {
-                    OleDbCommand findAuthorCmd = new OleDbCommand("SELECT ID FROM Authors WHERE FullName = ?", connection);
-                    findAuthorCmd.Parameters.AddWithValue("?", authorName);
-                    object authorIdObj = findAuthorCmd.ExecuteScalar();
-
                     int authorId;
-                    if (authorIdObj == null)
+                    using (OleDbCommand findAuthorCmd = new OleDbCommand("SELECT ID FROM Authors WHERE FullName = ?", connection))
                     {
-                        OleDbCommand addAuthorCmd = new OleDbCommand("INSERT INTO Authors (FullName) VALUES (?)", connection);
-                        addAuthorCmd.Parameters.AddWithValue("?", authorName);
-                        addAuthorCmd.ExecuteNonQuery();
+                        findAuthorCmd.Parameters.Add("?", OleDbType.VarChar).Value = authorName;
+                        object authorIdObj = findAuthorCmd.ExecuteScalar();
 
-                        OleDbCommand getAuthorIdCmd = new OleDbCommand("SELECT @@IDENTITY", connection);
-                        authorId = Convert.ToInt32(getAuthorIdCmd.ExecuteScalar());
+                        if (authorIdObj == null)
+                        {
+                            using (OleDbCommand addAuthorCmd = new OleDbCommand("INSERT INTO Authors (FullName) VALUES (?)", connection))
+                            {
+                                addAuthorCmd.Parameters.Add("?", OleDbType.VarChar).Value = authorName;
+                                addAuthorCmd.ExecuteNonQuery();
+                            }
+                            using (OleDbCommand getIdCmd = new OleDbCommand("SELECT @@IDENTITY", connection))
+                            {
+                                authorId = Convert.ToInt32(getIdCmd.ExecuteScalar());
+                            }
+                        }
+                        else
+                        {
+                            authorId = Convert.ToInt32(authorIdObj);
+                        }
                     }
-                    else
+
+                    using (OleDbCommand linkCmd = new OleDbCommand("INSERT INTO BookAuthors (BookID, AuthorID) VALUES (?, ?)", connection))
                     {
-                        authorId = Convert.ToInt32(authorIdObj);
+                        linkCmd.Parameters.Add("?", OleDbType.Integer).Value = bookId;
+                        linkCmd.Parameters.Add("?", OleDbType.Integer).Value = authorId;
+                        linkCmd.ExecuteNonQuery();
                     }
-
-                    OleDbCommand linkCmd = new OleDbCommand("INSERT INTO BookAuthors (BookID, AuthorID) VALUES (?, ?)", connection);
-                    linkCmd.Parameters.AddWithValue("?", bookId);
-                    linkCmd.Parameters.AddWithValue("?", authorId);
-                    linkCmd.ExecuteNonQuery();
                 }
 
                 MessageBox.Show("Книга успешно добавлена!");
+                DialogResult = true;
                 this.Close();
             }
             catch (Exception ex)
@@ -120,7 +150,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
     }

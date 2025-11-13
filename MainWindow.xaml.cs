@@ -1,15 +1,18 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.OleDb;
 using System.IO;
-using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace biblioteka
 {
     public partial class MainWindow : Window
     {
         private OleDbConnection connection;
+        private DataTable allBooksTable;
 
         public MainWindow()
         {
@@ -29,118 +32,171 @@ namespace biblioteka
             try
             {
                 connection.Open();
-
-                // 1. Загружаем все книги
-                string booksQuery = "SELECT ID, Title, Yearr, Genre, Description FROM Books ORDER BY ID";
-                OleDbDataAdapter booksAdapter = new OleDbDataAdapter(booksQuery, connection);
-                DataTable booksTable = new DataTable();
-                booksAdapter.Fill(booksTable);
-
-                // Добавляем колонку Authors для отображения
-                booksTable.Columns.Add("Authors", typeof(string));
-
-                // 2. Загружаем связи книги-авторы
-                string authorsQuery = @"
-            SELECT BA.BookID, A.FullName
-            FROM BookAuthors BA
-            INNER JOIN Authors A ON BA.AuthorID = A.ID";
-                OleDbDataAdapter authorsAdapter = new OleDbDataAdapter(authorsQuery, connection);
-                DataTable authorsTable = new DataTable();
-                authorsAdapter.Fill(authorsTable);
-
-                // 3. Формируем строку авторов для каждой книги
-                foreach (DataRow bookRow in booksTable.Rows)
+                // 1. Загружаем книги
+                string booksQuery = "SELECT Identifier, Title, Yearr, Razdel, Description, Quantity FROM Books ORDER BY Identifier";
+                using (OleDbDataAdapter adapter = new OleDbDataAdapter(booksQuery, connection))
                 {
-                    int bookId = Convert.ToInt32(bookRow["ID"]);
-                    var authors = authorsTable.AsEnumerable()
-                        .Where(r => Convert.ToInt32(r["BookID"]) == bookId)
-                        .Select(r => r["FullName"].ToString())
-                        .ToArray();
-                    bookRow["Authors"] = string.Join(", ", authors);
-                }
+                    DataTable table = new DataTable();
+                    adapter.Fill(table);
 
-                // 4. Привязываем к DataGrid
-                BooksDataGrid.ItemsSource = booksTable.DefaultView;
+                    // 2. Добавляем колонку Author
+                    if (!table.Columns.Contains("Author"))
+                        table.Columns.Add("Author", typeof(string));
+
+                    // 3. Для каждой книги — подтягиваем авторов
+                    foreach (DataRow row in table.Rows)
+                    {
+                        int bookId = Convert.ToInt32(row["Identifier"]);
+                        string authors = GetAuthorsForBook(bookId, connection);
+                        row["Author"] = authors;
+                    }
+
+                    // 4. Нормализация
+                    foreach (DataRow row in table.Rows)
+                    {
+                        row["Description"] = row.IsNull("Description") ? "" : row["Description"];
+                        row["Razdel"] = row.IsNull("Razdel") ? "" : row["Razdel"];
+                        row["Yearr"] = row.IsNull("Yearr") ? 0 : row["Yearr"];
+                        row["Quantity"] = row.IsNull("Quantity") ? 0 : row["Quantity"];
+                    }
+
+                    allBooksTable = table;
+                    BooksDataGrid.ItemsSource = allBooksTable.DefaultView;
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке базы: " + ex.Message);
+                MessageBox.Show("Ошибка при загрузке базы: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
+        private string GetAuthorsForBook(int bookId, OleDbConnection conn)
+        {
+            string authors = "";
+            try
+            {
+                string query = @"
+                    SELECT a.FullName
+                    FROM Authors a
+                    INNER JOIN BookAuthors ba ON a.ID = ba.AuthorID
+                    WHERE ba.BookID = ?
+                    ORDER BY a.FullName";
+                using (OleDbCommand cmd = new OleDbCommand(query, conn))
+                {
+                    cmd.Parameters.Add("?", OleDbType.Integer).Value = bookId;
+                    using (OleDbDataReader reader = cmd.ExecuteReader())
+                    {
+                        List<string> list = new List<string>();
+                        while (reader.Read())
+                        {
+                            list.Add(reader.GetString(0));
+                        }
+                        authors = string.Join(", ", list);
+                    }
+                }
+            }
+            catch
+            {
+                authors = "";
+            }
+            return authors;
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (allBooksTable == null) return;
+
+            string filterText = SearchBox.Text.Trim().Replace("'", "''");
+            if (string.IsNullOrWhiteSpace(filterText))
+            {
+                BooksDataGrid.ItemsSource = allBooksTable.DefaultView;
+                return;
+            }
+
+            string filter = $"Title LIKE '%{filterText}%' OR Author LIKE '%{filterText}%' OR Razdel LIKE '%{filterText}%' OR Description LIKE '%{filterText}%'";
+            DataView view = new DataView(allBooksTable) { RowFilter = filter };
+            BooksDataGrid.ItemsSource = view;
+        }
+
+        private void BooksDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (!(BooksDataGrid.SelectedItem is DataRowView row)) return;
+
+            if (!int.TryParse(row["Identifier"]?.ToString(), out int identifier) || identifier <= 0)
+            {
+                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var editWindow = new EditBookWindow(connection, identifier);
+            if (editWindow.ShowDialog() == true)
+                LoadBooks();
+        }
 
         private void AddBook_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                AddBookWindow addWindow = new AddBookWindow(connection);
-                addWindow.ShowDialog();
-
+            var addWindow = new AddBookWindow(connection);
+            if (addWindow.ShowDialog() == true)
                 LoadBooks();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка при открытии окна добавления книги: " + ex.Message);
-            }
         }
 
         private void DeleteBook_Click(object sender, RoutedEventArgs e)
         {
-            if (BooksDataGrid.SelectedItem is DataRowView row)
+            if (!(BooksDataGrid.SelectedItem is DataRowView row))
             {
-                int id = Convert.ToInt32(row["ID"]);
-                try
-                {
-                    connection.Open();
-
-                    // Удаляем связи с авторами
-                    OleDbCommand deleteLinks = new OleDbCommand("DELETE FROM BookAuthors WHERE BookID = ?", connection);
-                    deleteLinks.Parameters.AddWithValue("?", id);
-                    deleteLinks.ExecuteNonQuery();
-
-                    // Удаляем книгу
-                    OleDbCommand deleteBook = new OleDbCommand("DELETE FROM Books WHERE ID = ?", connection);
-                    deleteBook.Parameters.AddWithValue("?", id);
-                    deleteBook.ExecuteNonQuery();
-
-                    MessageBox.Show("Книга успешно удалена!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка при удалении книги: " + ex.Message);
-                }
-                finally
-                {
-                    connection.Close();
-                    LoadBooks();
-                }
+                MessageBox.Show("Выберите книгу для удаления.", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
-            else
+
+            if (!int.TryParse(row["Identifier"]?.ToString(), out int identifier) || identifier <= 0)
             {
-                MessageBox.Show("Выберите книгу для удаления.");
+                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var confirm = MessageBox.Show($"Удалить книгу с ID = {identifier}?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                connection.Open();
+                using (var cmd = new OleDbCommand("DELETE FROM Books WHERE Identifier = ?", connection))
+                {
+                    cmd.Parameters.Add("?", OleDbType.Integer).Value = identifier;
+                    cmd.ExecuteNonQuery();
+                }
+                MessageBox.Show("Книга удалена.", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
+                LoadBooks();
             }
         }
 
         private void IssueBook_Click(object sender, RoutedEventArgs e)
         {
-            IssueBookWindow issueWindow = new IssueBookWindow();
-            bool? result = issueWindow.ShowDialog();
-
-            if (result == true)
+            var issueWindow = new IssueBookWindow();
+            if (issueWindow.ShowDialog() == true)
             {
                 LoadBooks();
-                MessageBox.Show("Операция завершена.");
+                MessageBox.Show("Операция завершена.", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
         private void ViewReaders_Click(object sender, RoutedEventArgs e)
         {
-            ReadersInfoWindow readersWindow = new ReadersInfoWindow();
-            readersWindow.ShowDialog();
+            new ReadersInfoWindow().ShowDialog();
         }
     }
 }

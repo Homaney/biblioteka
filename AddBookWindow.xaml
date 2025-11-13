@@ -6,19 +6,28 @@
         WindowStartupLocation="CenterScreen"
         Background="#f0f2f5"
         AllowsTransparency="False">
-
     <Border Margin="20" Padding="25"
             Background="White" CornerRadius="15"
             BorderBrush="#ddd" BorderThickness="1"
             Effect="{DynamicResource DropShadow}">
         <StackPanel Margin="0,0,0,-26">
-
             <TextBlock Text="Добавление книги"
                        FontSize="20"
                        FontWeight="Bold"
                        Foreground="#333"
                        HorizontalAlignment="Center"
                        Margin="0 0 0 20"/>
+
+            <!-- ID книги -->
+            <TextBlock Text="ID книги (уникальный):" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="IdentifierBox"
+                     Margin="0 5 0 10"
+                     Padding="6"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"
+                     Height="28"
+                     ToolTip="Введите уникальный числовой ID книги"/>
 
             <!-- Название -->
             <TextBlock Text="Название книги:" FontWeight="Bold" Foreground="#555"/>
@@ -53,16 +62,16 @@
                      BorderBrush="#DDD"
                      BorderThickness="1"/>
 
-            <!-- Жанр -->
-            <TextBlock Text="Жанр:" FontWeight="Bold" Foreground="#555"/>
-            <TextBox x:Name="GenreBox"
+            <!-- Раздел -->
+            <TextBlock Text="Раздел:" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="RazdelBox"
                      Margin="0 5 0 10"
                      Padding="6"
                      Height="28"
                      BorderBrush="#ccc"
                      BorderThickness="1"
                      Background="#fafafa"
-                     ToolTip="Введите жанр книги"/>
+                     ToolTip="Введите раздел книги"/>
 
             <!-- Год -->
             <TextBlock Text="Год издания:" FontWeight="Bold" Foreground="#555"/>
@@ -74,6 +83,18 @@
                      BorderThickness="1"
                      Background="#fafafa"
                      ToolTip="Введите год издания"/>
+
+            <!-- Количество -->
+            <TextBlock Text="Количество экземпляров:" FontWeight="Bold" Foreground="#555"/>
+            <TextBox x:Name="QuantityBox"
+                     Margin="0 5 0 10"
+                     Padding="6"
+                     Height="28"
+                     BorderBrush="#ccc"
+                     BorderThickness="1"
+                     Background="#fafafa"
+                     Text="1"
+                     ToolTip="Сколько экземпляров есть в библиотеке"/>
 
             <!-- Описание -->
             <TextBlock Text="Описание (необязательно):" FontWeight="Bold" Foreground="#555"/>
@@ -109,7 +130,6 @@
             </Button>
         </StackPanel>
     </Border>
-
     <Window.Resources>
         <DropShadowEffect x:Key="DropShadow" BlurRadius="15" ShadowDepth="2" Opacity="0.3"/>
     </Window.Resources>
