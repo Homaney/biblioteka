@@ -4,68 +4,75 @@
         Title="Информация о читателях"
         Height="541" Width="700"
         WindowStartupLocation="CenterScreen"
-        Background="#fafafa">
-
+        Background="#121212">
     <Window.Resources>
-        <!-- Ресурс тени для карточек книг -->
-        <DropShadowEffect x:Key="CardShadow" Color="#888" Direction="270" ShadowDepth="2" BlurRadius="5" Opacity="0.5"/>
+        <!-- Тени и цвета -->
+        <DropShadowEffect x:Key="CardShadow" Color="#6C5CE7" Direction="270" ShadowDepth="2" BlurRadius="5" Opacity="0.5"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#B0B0B0"/>
+        <SolidColorBrush x:Key="CardBg" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="Border" Color="#333333"/>
     </Window.Resources>
-
     <Grid Margin="20">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*"/>
             <ColumnDefinition Width="3*"/>
         </Grid.ColumnDefinitions>
-
         <!-- Левая часть: список читателей -->
-        <Border Background="White" CornerRadius="10" Padding="10" Margin="0 0 10 0"
-                BorderBrush="#ddd" BorderThickness="1">
+        <Border Background="{StaticResource CardBg}" CornerRadius="10" Padding="10" Margin="0 0 10 0"
+                BorderBrush="{StaticResource Border}" BorderThickness="1">
             <StackPanel>
                 <TextBlock Text="Список читателей"
                            FontWeight="Bold" FontSize="16"
+                           Foreground="{StaticResource TextPrimary}"
                            Margin="0 0 0 10"/>
                 <ListBox x:Name="ReadersList"
                          SelectionChanged="ReadersList_SelectionChanged"
                          DisplayMemberPath="FullName"
                          BorderThickness="0"
-                         Background="#f7f7f7"
+                         Background="#252525"
+                         Foreground="{StaticResource TextPrimary}"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          Height="380"/>
             </StackPanel>
         </Border>
-
         <!-- Правая часть: карточка читателя -->
-        <Border Grid.Column="1" Background="White" CornerRadius="10" Padding="15"
-                BorderBrush="#ddd" BorderThickness="1">
+        <Border Grid.Column="1" Background="{StaticResource CardBg}" CornerRadius="10" Padding="15"
+                BorderBrush="{StaticResource Border}" BorderThickness="1">
             <StackPanel>
                 <TextBlock Text="Карточка читателя"
                            FontWeight="Bold" FontSize="16"
+                           Foreground="{StaticResource TextPrimary}"
                            Margin="0 0 0 10"/>
-
                 <StackPanel x:Name="ReaderCard" Visibility="Collapsed" Opacity="0">
-                    <TextBlock x:Name="FullNameText" FontSize="14" FontWeight="Bold" Margin="0 0 0 5"/>
-                    <TextBlock x:Name="PhoneText" FontSize="13" Foreground="Gray" Margin="0 0 0 10"/>
-
-                    <TextBlock Text="Выданные книги:" FontWeight="Bold" Margin="0 0 0 5"/>
-                    <ListBox x:Name="BooksList" Height="300" BorderThickness="0" Background="#f7f7f7">
+                    <TextBlock x:Name="FullNameText" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0 0 0 5"/>
+                    <TextBlock x:Name="PhoneText" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0 0 0 10"/>
+                    <TextBlock Text="Выданные книги:" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0 0 0 5"/>
+                    <ListBox x:Name="BooksList" Height="300" BorderThickness="0" Background="#252525">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="White" CornerRadius="5" 
-                                        BorderBrush="#ccc" BorderThickness="1" Padding="10" Margin="0 0 0 5" 
+                                <Border Background="{StaticResource CardBg}" CornerRadius="5"
+                                        BorderBrush="{StaticResource Border}" BorderThickness="1" Padding="10" Margin="0 0 0 5"
                                         Effect="{StaticResource CardShadow}">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Text="{Binding BookTitle}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding InventoryNumber}" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
                                         <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="12"/>
+                                        <Button Content="Вернуть"
+                                                Width="80" Height="25"
+                                                Background="#FF7675" Foreground="White"
+                                                Margin="0,5,0,0"
+                                                Click="ReturnBook_Click"
+                                                Tag="{Binding IssuedId}"/>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </StackPanel>
-
                 <TextBlock x:Name="SelectHint"
                            Text="Выберите читателя, чтобы увидеть информацию"
-                           Foreground="Gray" FontStyle="Italic"
+                           Foreground="{StaticResource TextSecondary}" FontStyle="Italic"
                            FontSize="13" VerticalAlignment="Center"
                            Margin="0 20 0 0"
                            TextAlignment="Center"/>

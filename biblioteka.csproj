@@ -94,11 +94,20 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AddUDKWindow.xaml.cs">
+      <DependentUpon>AddUDKWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="EditBookWindow.xaml.cs">
       <DependentUpon>EditBookWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="EditUDKWindow.xaml.cs">
+      <DependentUpon>EditUDKWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ReadersInfoWindow.xaml.cs">
       <DependentUpon>ReadersInfoWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UDKWindow.xaml.cs">
+      <DependentUpon>UDKWindow.xaml</DependentUpon>
     </Compile>
     <Page Include="AddBookWindow.xaml">
       <SubType>Designer</SubType>
@@ -108,7 +117,15 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="AddUDKWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="EditBookWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="EditUDKWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -138,6 +155,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Page Include="ReadersInfoWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UDKWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
