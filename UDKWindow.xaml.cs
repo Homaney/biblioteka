@@ -9,6 +9,7 @@ namespace biblioteka
     public partial class UDKWindow : Window
     {
         private OleDbConnection connection;
+        private DataTable udkTable;
 
         public UDKWindow(OleDbConnection conn)
         {
@@ -21,13 +22,15 @@ namespace biblioteka
         {
             try
             {
-                connection.Open();
+                if (connection.State == ConnectionState.Closed)
+                    connection.Open();
+
                 using (OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT ID, Code, Description FROM UDK ORDER BY ID", connection))
                 {
-                    DataTable table = new DataTable();
-                    adapter.Fill(table);
-                    UDKDataGrid.ItemsSource = table.DefaultView;
-                    StatusText.Text = $"Загружено записей: {table.Rows.Count}";
+                    udkTable = new DataTable();
+                    adapter.Fill(udkTable);
+                    UDKDataGrid.ItemsSource = udkTable.DefaultView;
+                    StatusText.Text = $"Загружено записей: {udkTable.Rows.Count}";
                 }
             }
             catch (Exception ex)
@@ -37,7 +40,8 @@ namespace biblioteka
             }
             finally
             {
-                connection.Close();
+                if (connection.State == ConnectionState.Open)
+                    connection.Close();
             }
         }
 
@@ -49,7 +53,7 @@ namespace biblioteka
                 addUDK.Owner = this;
                 if (addUDK.ShowDialog() == true)
                 {
-                    LoadUDK();
+                    LoadUDK(); // Перезагружаем данные
                 }
             }
             catch (Exception ex)
@@ -69,7 +73,7 @@ namespace biblioteka
                     editUDK.Owner = this;
                     if (editUDK.ShowDialog() == true)
                     {
-                        LoadUDK();
+                        LoadUDK(); // Перезагружаем данные
                     }
                 }
                 catch (Exception ex)
@@ -102,34 +106,58 @@ namespace biblioteka
                 {
                     try
                     {
-                        connection.Open();
-
-                        // Проверяем, используется ли УДК в книгах
-                        using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM Books WHERE UDK_ID = ?", connection))
+                        // Создаем новое подключение для операции удаления
+                        string connectionString = connection.ConnectionString;
+                        using (var deleteConnection = new OleDbConnection(connectionString))
                         {
-                            checkCmd.Parameters.AddWithValue("@p1", id);
-                            int usageCount = Convert.ToInt32(checkCmd.ExecuteScalar());
+                            deleteConnection.Open();
 
-                            if (usageCount > 0)
+                            // Проверяем, используется ли УДК в книгах
+                            using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM Books WHERE UDK_ID = ?", deleteConnection))
                             {
-                                MessageBox.Show(
-                                    $"Невозможно удалить УДК!\n\nЭтот УДК используется в {usageCount} книгах.\nСначала удалите или измените связанные книги.",
-                                    "Ошибка",
-                                    MessageBoxButton.OK,
-                                    MessageBoxImage.Error);
-                                return;
+                                checkCmd.Parameters.AddWithValue("?", id);
+                                int usageCount = Convert.ToInt32(checkCmd.ExecuteScalar());
+
+                                if (usageCount > 0)
+                                {
+                                    MessageBox.Show(
+                                        $"Невозможно удалить УДК!\n\nЭтот УДК используется в {usageCount} книгах.\nСначала удалите или измените связанные книги.",
+                                        "Ошибка",
+                                        MessageBoxButton.OK,
+                                        MessageBoxImage.Error);
+                                    return;
+                                }
                             }
-                        }
 
-                        using (OleDbCommand cmd = new OleDbCommand("DELETE FROM UDK WHERE ID = ?", connection))
-                        {
-                            cmd.Parameters.AddWithValue("@p1", id);
-                            int affected = cmd.ExecuteNonQuery();
-
-                            if (affected > 0)
+                            using (OleDbCommand cmd = new OleDbCommand("DELETE FROM UDK WHERE ID = ?", deleteConnection))
                             {
-                                MessageBox.Show("УДК успешно удален!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                                LoadUDK();
+                                cmd.Parameters.AddWithValue("?", id);
+                                int affected = cmd.ExecuteNonQuery();
+
+                                if (affected > 0)
+                                {
+                                    MessageBox.Show("УДК успешно удален!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                                    // Обновляем DataTable и DataGrid
+                                    if (udkTable != null)
+                                    {
+                                        // Находим и удаляем строку из DataTable
+                                        DataRow[] rowsToDelete = udkTable.Select($"ID = {id}");
+                                        foreach (DataRow rowToDelete in rowsToDelete)
+                                        {
+                                            udkTable.Rows.Remove(rowToDelete);
+                                        }
+
+                                        // Обновляем ItemsSource
+                                        UDKDataGrid.ItemsSource = udkTable.DefaultView;
+                                        StatusText.Text = $"Загружено записей: {udkTable.Rows.Count}";
+                                    }
+                                    else
+                                    {
+                                        // Если таблица не загружена, перезагружаем полностью
+                                        LoadUDK();
+                                    }
+                                }
                             }
                         }
                     }
@@ -137,16 +165,26 @@ namespace biblioteka
                     {
                         MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
-                    finally
-                    {
-                        connection.Close();
-                    }
                 }
             }
             else
             {
                 MessageBox.Show("Выберите УДК для удаления!", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
             }
+        }
+
+        // Закрываем подключение при закрытии окна
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            if (connection.State == ConnectionState.Open)
+                connection.Close();
+        }
+
+        // Метод для принудительного обновления данных
+        private void RefreshUDK_Click(object sender, RoutedEventArgs e)
+        {
+            LoadUDK();
         }
     }
 }

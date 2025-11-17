@@ -202,23 +202,10 @@
                          ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}"
                          CellStyle="{StaticResource DataGridCellStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="ID" 
-                                           Binding="{Binding ID}" 
-                                           Width="80"
-                                           IsReadOnly="True">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                    <Setter Property="TextAlignment" Value="Center"/>
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-
+                        <!-- Столбец "Код УДК" -->
                         <DataGridTextColumn Header="Код УДК" 
                                            Binding="{Binding Code}" 
-                                           Width="150"
+                                           Width="180"
                                            IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
@@ -226,11 +213,14 @@
                                     <Setter Property="HorizontalAlignment" Value="Left"/>
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Setter Property="TextAlignment" Value="Left"/>
-                                    <Setter Property="Padding" Value="12,0,0,0"/>
+                                    <Setter Property="Padding" Value="12,8,12,8"/>
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="FontWeight" Value="Medium"/>
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
+                        <!-- Столбец "Описание" -->
                         <DataGridTextColumn Header="Описание" 
                                            Binding="{Binding Description}" 
                                            Width="*"
@@ -242,7 +232,7 @@
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Setter Property="TextAlignment" Value="Left"/>
                                     <Setter Property="TextWrapping" Value="Wrap"/>
-                                    <Setter Property="Padding" Value="12,0,12,0"/>
+                                    <Setter Property="Padding" Value="12,8,12,8"/>
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>

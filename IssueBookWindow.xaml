@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="📖 Выдача книги"
-        Height="606" Width="500"
+        Height="654" Width="700"
         WindowStartupLocation="CenterOwner"
         Background="#0F0F0F"
         FontFamily="Segoe UI"
@@ -20,9 +20,10 @@
         <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA"/>
         <SolidColorBrush x:Key="InputBackground" Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="PlaceholderColor" Color="#666666"/>
 
-        <!-- Базовый стиль для всех элементов управления -->
-        <Style TargetType="ComboBox">
+        <!-- Стиль для ComboBox с плейсхолдером -->
+        <Style x:Key="ComboBoxWithPlaceholder" TargetType="ComboBox">
             <Setter Property="Background" Value="{StaticResource InputBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
             <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
@@ -31,6 +32,68 @@
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Height" Value="44"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid x:Name="templateRoot" SnapsToDevicePixels="true">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition MinWidth="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}" Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <Popup x:Name="PART_Popup" AllowsTransparency="true" Grid.ColumnSpan="2" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Margin="1" PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}" Placement="Bottom">
+                                <Border x:Name="dropDownBorder" Background="{StaticResource InputBackground}" BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="4" MaxHeight="300">
+                                    <ScrollViewer x:Name="DropDownScrollViewer">
+                                        <Grid x:Name="grid" RenderOptions.ClearTypeHint="Enabled">
+                                            <Canvas x:Name="canvas" HorizontalAlignment="Left" Height="0" VerticalAlignment="Top" Width="0">
+                                                <Rectangle x:Name="opaqueRect" Fill="{Binding Background, ElementName=dropDownBorder}" Height="{Binding ActualHeight, ElementName=dropDownBorder}" Width="{Binding ActualWidth, ElementName=dropDownBorder}"/>
+                                            </Canvas>
+                                            <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                        </Grid>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                            <ToggleButton x:Name="toggleButton" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Grid.ColumnSpan="2" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="20"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter ContentTemplate="{TemplateBinding ContentTemplate}" Content="{TemplateBinding Content}" ContentStringFormat="{TemplateBinding ContentStringFormat}" HorizontalAlignment="Left" Margin="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                                <Path x:Name="arrow" Grid.Column="1" Data="F1 M 300,-190L 310,-190L 305,-183L 300,-190 Z" Fill="{StaticResource TextSecondary}" HorizontalAlignment="Center" Margin="0" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="contentPresenter" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Content="{TemplateBinding SelectionBoxItem}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" HorizontalAlignment="Left" IsHitTestVisible="false" Margin="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+
+                            <!-- Плейсхолдер -->
+                            <TextBlock x:Name="placeholderText" 
+                                      Text="{TemplateBinding Tag}" 
+                                      Foreground="{StaticResource PlaceholderColor}" 
+                                      Margin="{TemplateBinding Padding}" 
+                                      VerticalAlignment="Center"
+                                      IsHitTestVisible="False"
+                                      Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryPurple}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="false">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                            <Trigger Property="SelectedItem" Value="{x:Null}">
+                                <Setter TargetName="placeholderText" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="contentPresenter" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="ComboBoxItem">
@@ -84,11 +147,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- Переопределение системных цветов для DatePicker -->
-        <SolidColorBrush x:Key="DatePickerBackground" Color="#2A2A2A"/>
-        <SolidColorBrush x:Key="DatePickerForeground" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="DatePickerBorderBrush" Color="#2D2D2D"/>
-
         <!-- Стиль для TextBox внутри DatePicker -->
         <Style TargetType="DatePickerTextBox">
             <Setter Property="Background" Value="{StaticResource InputBackground}"/>
@@ -133,8 +191,8 @@
 
     </Window.Resources>
 
-    <Border Margin="20" Background="{StaticResource CardBackground}" CornerRadius="8" BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
-        <Grid Margin="24">
+    <Border Margin="10,10,10,8" Background="{StaticResource CardBackground}" CornerRadius="12" BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
+        <Grid Margin="25,25,25,-1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -144,66 +202,68 @@
             <!-- Заголовок -->
             <TextBlock Text="📖 Выдача книги" 
                       Grid.Row="0"
-                      FontSize="24" 
+                      FontSize="26" 
                       FontWeight="Bold"
                       Foreground="{StaticResource TextPrimary}" 
                       HorizontalAlignment="Center" 
-                      Margin="0,0,0,20"/>
+                      Margin="0,0,0,25"/>
 
             <!-- Форма -->
             <StackPanel Grid.Row="1" VerticalAlignment="Top">
                 <!-- Книга -->
-                <TextBlock Text="Книга:" 
+                <TextBlock Text="📕 Книга:" 
                           Foreground="{StaticResource TextSecondary}" 
-                          FontSize="13" 
+                          FontSize="14" 
                           FontWeight="SemiBold"
-                          Margin="0,0,0,4"/>
+                          Margin="0,0,0,6"/>
                 <ComboBox x:Name="BookComboBox" 
-                         DisplayMemberPath="Title" 
-                         SelectedValuePath="Identifier" 
+                         Style="{StaticResource ComboBoxWithPlaceholder}"
+                         Tag="Выберите книгу..."
+                         DisplayMemberPath="Title"
                          SelectionChanged="BookComboBox_SelectionChanged"
-                         Margin="0,0,0,16"/>
+                         Margin="0,0,0,20"/>
 
                 <!-- Доступные экземпляры -->
                 <TextBlock Text="📚 Доступные экземпляры:" 
                           Foreground="{StaticResource TextSecondary}" 
-                          FontSize="13" 
+                          FontSize="14" 
                           FontWeight="SemiBold"
-                          Margin="0,0,0,4"/>
+                          Margin="0,0,0,6"/>
                 <ListBox x:Name="InstanceListBox" 
-                        Height="80"
+                        Height="100"
                         DisplayMemberPath="InventoryNumber" 
                         SelectedValuePath="ID"
-                        Margin="0,0,0,16"/>
+                        Margin="0,0,0,20"/>
 
                 <!-- Читатель -->
                 <TextBlock Text="👤 Читатель:" 
                           Foreground="{StaticResource TextSecondary}" 
-                          FontSize="13" 
+                          FontSize="14" 
                           FontWeight="SemiBold"
-                          Margin="0,0,0,4"/>
-                <Grid Margin="0,0,0,16">
+                          Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="44"/>
                     </Grid.ColumnDefinitions>
                     <ComboBox x:Name="ReaderComboBox" 
                              Grid.Column="0"
-                             DisplayMemberPath="FullName" 
-                             SelectedValuePath="ID"/>
+                             Style="{StaticResource ComboBoxWithPlaceholder}"
+                             Tag="Выберите читателя..."
+                             DisplayMemberPath="FullName"/>
                     <Button Content="➕" 
                             Grid.Column="1"
                             Style="{StaticResource AddButton}"
                             Click="AddReader_Click"
-                            Margin="8,0,0,0"
+                            Margin="3,0,-8,0"
                             ToolTip="Добавить нового читателя"/>
                 </Grid>
 
                 <!-- Даты -->
-                <Grid Margin="0,0,0,16">
+                <Grid Margin="0,0,0,20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="15"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -211,35 +271,32 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="📅 Дата выдачи:" 
                                   Foreground="{StaticResource TextSecondary}" 
-                                  FontSize="13" 
+                                  FontSize="14" 
                                   FontWeight="SemiBold"
-                                  Margin="0,0,0,4"/>
-                        <DatePicker x:Name="IssueDatePicker"/>
+                                  Margin="0,0,0,6"/>
+                        <DatePicker x:Name="IssueDatePicker" Height="28"/>
                     </StackPanel>
-
-                    <!-- Пробел -->
-                    <Rectangle Grid.Column="1" Fill="Transparent"/>
 
                     <!-- Дата возврата -->
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="📅 Плановая дата возврата:" 
                                   Foreground="{StaticResource TextSecondary}" 
-                                  FontSize="13" 
+                                  FontSize="14" 
                                   FontWeight="SemiBold"
-                                  Margin="0,0,0,4"/>
-                        <DatePicker x:Name="PlannedReturnDatePicker"/>
+                                  Margin="0,0,0,6"/>
+                        <DatePicker x:Name="PlannedReturnDatePicker" Height="28"/>
                     </StackPanel>
                 </Grid>
             </StackPanel>
 
             <!-- Кнопка выдачи -->
-            <Button Grid.Row="2"
+            <Button Grid.Row="1"
                     Content="✅ Выдать книгу" 
                     Style="{StaticResource SuccessButton}"
-                    Width="200"
+                    Width="220"
                     Click="IssueButton_Click" 
                     HorizontalAlignment="Center"
-                    Margin="0,20,0,0"/>
+                    Margin="0,433,0,25" Grid.RowSpan="2"/>
         </Grid>
     </Border>
 </Window>
