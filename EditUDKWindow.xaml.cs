@@ -1,18 +1,16 @@
 ﻿using System;
-using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Windows;
 
 namespace biblioteka
 {
     public partial class EditUDKWindow : Window
     {
-        private OleDbConnection connection;
         private readonly int udkId;
 
-        public EditUDKWindow(OleDbConnection conn, int id)
+        public EditUDKWindow(int id)
         {
             InitializeComponent();
-            connection = conn;
             udkId = id;
             Loaded += (s, e) => LoadUDKData();
         }
@@ -21,33 +19,35 @@ namespace biblioteka
         {
             try
             {
-                connection.Open();
-                using (var cmd = new OleDbCommand("SELECT Code, Description FROM UDK WHERE ID = ?", connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    cmd.Parameters.AddWithValue("@p1", udkId);
-                    using (var reader = cmd.ExecuteReader())
+                    connection.Open();
+                    string query = "SELECT Code, Description FROM UDK WHERE ID = @ID";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        if (reader.Read())
+                        cmd.Parameters.AddWithValue("@ID", udkId);
+                        using (var reader = cmd.ExecuteReader())
                         {
-                            CodeTextBox.Text = reader["Code"].ToString();
-                            DescriptionTextBox.Text = reader["Description"].ToString();
-                        }
-                        else
-                        {
-                            MessageBox.Show("УДК не найден!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                            Close();
+                            if (reader.Read())
+                            {
+                                CodeTextBox.Text = reader["Code"].ToString();
+                                DescriptionTextBox.Text = reader["Description"].ToString();
+                            }
+                            else
+                            {
+                                MessageBox.Show("УДК не найден!", "Ошибка",
+                                    MessageBoxButton.OK, MessageBoxImage.Error);
+                                Close();
+                            }
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка загрузки данных: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Ошибка загрузки: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
-            }
-            finally
-            {
-                connection.Close();
             }
         }
 
@@ -69,45 +69,42 @@ namespace biblioteka
 
             try
             {
-                connection.Open();
-
-                // Проверяем, существует ли уже такой код УДК (кроме текущего)
-                using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM UDK WHERE Code = ? AND ID <> ?", connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    checkCmd.Parameters.AddWithValue("@p1", CodeTextBox.Text.Trim());
-                    checkCmd.Parameters.AddWithValue("@p2", udkId);
-                    int existingCount = Convert.ToInt32(checkCmd.ExecuteScalar());
+                    connection.Open();
 
-                    if (existingCount > 0)
+                    // Проверка уникальности
+                    string checkQuery = "SELECT COUNT(*) FROM UDK WHERE Code = @Code AND ID <> @ID";
+                    using (SqlCommand checkCmd = new SqlCommand(checkQuery, connection))
                     {
-                        MessageBox.Show("УДК с таким кодом уже существует!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                        checkCmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
+                        checkCmd.Parameters.AddWithValue("@ID", udkId);
+                        int exists = (int)checkCmd.ExecuteScalar();
+                        if (exists > 0)
+                        {
+                            MessageBox.Show("Такой код УДК уже существует!", "Ошибка",
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
                     }
-                }
 
-                using (var cmd = new OleDbCommand("UPDATE UDK SET Code = ?, Description = ? WHERE ID = ?", connection))
-                {
-                    cmd.Parameters.AddWithValue("@p1", CodeTextBox.Text.Trim());
-                    cmd.Parameters.AddWithValue("@p2", DescriptionTextBox.Text.Trim());
-                    cmd.Parameters.AddWithValue("@p3", udkId);
-
-                    int affected = cmd.ExecuteNonQuery();
-
-                    if (affected > 0)
+                    string query = "UPDATE UDK SET Code = @Code, Description = @Description WHERE ID = @ID";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        MessageBox.Show("УДК успешно обновлен!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                        DialogResult = true;
-                        Close();
+                        cmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Description", DescriptionTextBox.Text.Trim());
+                        cmd.Parameters.AddWithValue("@ID", udkId);
+                        cmd.ExecuteNonQuery();
                     }
+
+                    DialogResult = true;
+                    Close();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при обновлении УДК: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                connection.Close();
+                MessageBox.Show("Ошибка при сохранении: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

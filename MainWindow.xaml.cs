@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
-using System.IO;
+using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,149 +11,198 @@ namespace biblioteka
 {
     public partial class MainWindow : Window
     {
-        private OleDbConnection connection;
         private DataTable allBooksTable;
 
         public MainWindow()
         {
             InitializeComponent();
-            InitializeDatabaseConnection();
             InitializeSearchPlaceholder();
             LoadBooks();
+            LoadStatistics();
             UpdateStats();
-        }
-
-        private void InitializeDatabaseConnection()
-        {
-            try
-            {
-                string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "Library.accdb");
-                string directory = Path.GetDirectoryName(dbPath);
-
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                if (!File.Exists(dbPath))
-                {
-                    MessageBox.Show($"База данных не найдена по пути: {dbPath}\nПожалуйста, создайте базу данных.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                connection = new OleDbConnection($@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={dbPath};Persist Security Info=False;");
-                StatusTextBlock.Text = "База данных подключена";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка подключения к базе данных: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                StatusTextBlock.Text = "Ошибка подключения к БД";
-            }
-        }
-
-        private void InitializeSearchPlaceholder()
-        {
-            SearchBox.Text = "";
-            SearchBox.Foreground = new SolidColorBrush(Colors.White);
         }
 
         private void LoadBooks()
         {
-            if (connection == null) return;
-
             try
             {
-                connection.Open();
-                string booksQuery = @"SELECT b.Identifier, b.Title, b.Yearr, b.Description, u.Code AS UDKCode 
-                                    FROM (Books b LEFT JOIN UDK u ON b.UDK_ID = u.ID) 
-                                    ORDER BY b.Identifier";
-
-                using (OleDbDataAdapter adapter = new OleDbDataAdapter(booksQuery, connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    DataTable table = new DataTable();
-                    adapter.Fill(table);
+                    connection.Open();
 
-                    if (!table.Columns.Contains("Author"))
-                        table.Columns.Add("Author", typeof(string));
-                    if (!table.Columns.Contains("AvailableInstances"))
-                        table.Columns.Add("AvailableInstances", typeof(int));
+                    string booksQuery = @"
+                        SELECT b.ID, b.Title, b.Yearr, b.Description, u.Code AS UDKCode,
+                               b.Price, b.AvailableForSale, b.Authors
+                        FROM Books b 
+                        LEFT JOIN UDK u ON b.UDK_ID = u.ID 
+                        ORDER BY b.ID";
 
-                    foreach (DataRow row in table.Rows)
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(booksQuery, connection))
                     {
-                        int bookId = Convert.ToInt32(row["Identifier"]);
-                        string authors = GetAuthorsForBook(bookId, connection);
-                        row["Author"] = authors;
-                        row["AvailableInstances"] = GetAvailableInstances(bookId, connection);
-                        row["Description"] = row.IsNull("Description") ? "—" : row["Description"];
-                        row["UDKCode"] = row.IsNull("UDKCode") ? "—" : row["UDKCode"];
-                        row["Yearr"] = row.IsNull("Yearr") ? 0 : row["Yearr"];
-                    }
-                    allBooksTable = table;
-                    BooksDataGrid.ItemsSource = allBooksTable.DefaultView;
-                }
+                        DataTable table = new DataTable();
+                        adapter.Fill(table);
 
-                StatusTextBlock.Text = $"Загружено книг: {allBooksTable.Rows.Count}";
+                        // Добавляем недостающие колонки
+                        if (!table.Columns.Contains("Author"))
+                            table.Columns.Add("Author", typeof(string));
+                        if (!table.Columns.Contains("AuthorShort"))
+                            table.Columns.Add("AuthorShort", typeof(string));
+                        if (!table.Columns.Contains("AvailableInstances"))
+                            table.Columns.Add("AvailableInstances", typeof(int));
+                        if (!table.Columns.Contains("Identifier"))
+                            table.Columns.Add("Identifier", typeof(int));
+
+                        foreach (DataRow row in table.Rows)
+                        {
+                            int bookId = Convert.ToInt32(row["ID"]);
+                            row["Identifier"] = bookId;
+
+                            // Получаем полных авторов
+                            string fullAuthors = row["Authors"]?.ToString() ?? "";
+                            row["Author"] = fullAuthors;
+
+                            // Сокращаем авторов до фамилии с инициалами
+                            row["AuthorShort"] = ShortenAuthors(fullAuthors);
+
+                            row["AvailableInstances"] = GetAvailableInstances(bookId, connection);
+                            row["Description"] = row.IsNull("Description") ? "—" : row["Description"];
+                            row["UDKCode"] = row.IsNull("UDKCode") ? "—" : row["UDKCode"];
+                            row["Yearr"] = row.IsNull("Yearr") ? 0 : row["Yearr"];
+                        }
+
+                        allBooksTable = table;
+                        BooksDataGrid.ItemsSource = allBooksTable.DefaultView;
+                    }
+
+                    StatusTextBlock.Text = $"Загружено книг: {allBooksTable.Rows.Count}";
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке книг: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Ошибка при загрузке книг: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 StatusTextBlock.Text = "Ошибка загрузки данных";
             }
-            finally
-            {
-                if (connection?.State == ConnectionState.Open)
-                    connection.Close();
-            }
         }
 
-        private string GetAuthorsForBook(int bookId, OleDbConnection conn)
+        // Новый метод для сокращения авторов
+        private string ShortenAuthors(string authors)
         {
-            string authors = "";
+            if (string.IsNullOrEmpty(authors) || authors == "—")
+                return "—";
+
+            string[] authorList = authors.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            List<string> shortNames = new List<string>();
+
+            foreach (string author in authorList)
+            {
+                string trimmed = author.Trim();
+                string[] parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length >= 2)
+                {
+                    // Берем фамилию + первую букву имени
+                    string lastName = parts[0];
+                    string firstNameInitial = parts[1].Length > 0 ? parts[1][0].ToString() : "";
+                    shortNames.Add($"{lastName} {firstNameInitial}.");
+
+                    // Если есть отчество - добавляем его первую букву
+                    if (parts.Length >= 3)
+                    {
+                        string middleInitial = parts[2].Length > 0 ? parts[2][0].ToString() : "";
+                        shortNames[shortNames.Count - 1] = $"{lastName} {firstNameInitial}.{middleInitial}.";
+                    }
+                }
+                else
+                {
+                    shortNames.Add(trimmed); // Если не удалось распарсить, оставляем как есть
+                }
+            }
+
+            return string.Join(", ", shortNames);
+        }
+
+        private void LoadStatistics()
+        {
             try
             {
-                string query = @"SELECT a.FullName
-                               FROM Authors a
-                               INNER JOIN BookAuthors ba ON a.ID = ba.AuthorID
-                               WHERE ba.BookID = ?
-                               ORDER BY a.FullName";
-                using (OleDbCommand cmd = new OleDbCommand(query, conn))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    cmd.Parameters.AddWithValue("@BookID", bookId);
-                    using (OleDbDataReader reader = cmd.ExecuteReader())
+                    connection.Open();
+
+                    // 1. Всего книг
+                    string totalBooksQuery = "SELECT COUNT(*) FROM Books";
+                    using (SqlCommand cmd = new SqlCommand(totalBooksQuery, connection))
                     {
-                        List<string> authorList = new List<string>();
-                        while (reader.Read())
-                        {
-                            if (!reader.IsDBNull(0))
-                                authorList.Add(reader.GetString(0));
-                        }
-                        authors = authorList.Count > 0 ? string.Join(", ", authorList) : "—";
+                        int totalBooks = (int)cmd.ExecuteScalar();
+                        TotalBooksStat.Text = totalBooks.ToString();
+                    }
+
+                    // 2. Выдано сейчас
+                    string issuedNowQuery = "SELECT COUNT(*) FROM IssuedBooks WHERE Status = N'Выдана'";
+                    using (SqlCommand cmd = new SqlCommand(issuedNowQuery, connection))
+                    {
+                        int issuedNow = (int)cmd.ExecuteScalar();
+                        IssuedNowStat.Text = issuedNow.ToString();
+                    }
+
+                    // 3. Продано за месяц
+                    string monthlySalesQuery = @"
+                        SELECT ISNULL(SUM(TotalAmount), 0) 
+                        FROM Sales 
+                        WHERE SaleDate >= DATEADD(month, -1, GETDATE())";
+                    using (SqlCommand cmd = new SqlCommand(monthlySalesQuery, connection))
+                    {
+                        decimal monthlySales = (decimal)cmd.ExecuteScalar();
+                        MonthlySalesStat.Text = $"{monthlySales:N0} BYN";
+                    }
+
+                    // 4. Всего читателей
+                    string readersCountQuery = "SELECT COUNT(*) FROM Readers";
+                    using (SqlCommand cmd = new SqlCommand(readersCountQuery, connection))
+                    {
+                        int readersCount = (int)cmd.ExecuteScalar();
+                        ReadersCountStat.Text = readersCount.ToString();
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка при получении авторов: {ex.Message}");
-                authors = "—";
+                Console.WriteLine("Ошибка загрузки статистики: " + ex.Message);
             }
-            return authors;
         }
 
-        private int GetAvailableInstances(int bookId, OleDbConnection conn)
+        private string GetAuthorsForBook(int bookId, SqlConnection connection)
         {
             try
             {
-                string query = "SELECT COUNT(*) FROM BookInstances WHERE BookID = ? AND Status = 'На полке'";
-                using (OleDbCommand cmd = new OleDbCommand(query, conn))
+                string query = "SELECT Authors FROM Books WHERE ID = @BookID";
+                using (SqlCommand cmd = new SqlCommand(query, connection))
                 {
                     cmd.Parameters.AddWithValue("@BookID", bookId);
                     object result = cmd.ExecuteScalar();
-                    return result != null ? Convert.ToInt32(result) : 0;
+                    return result?.ToString() ?? "—";
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Ошибка при получении экземпляров: {ex.Message}");
+                return "—";
+            }
+        }
+
+        private int GetAvailableInstances(int bookId, SqlConnection connection)
+        {
+            try
+            {
+                string query = "SELECT COUNT(*) FROM BookInstances WHERE BookID = @BookID AND Status = N'Доступна'";
+                using (SqlCommand cmd = new SqlCommand(query, connection))
+                {
+                    cmd.Parameters.AddWithValue("@BookID", bookId);
+                    return (int)cmd.ExecuteScalar();
+                }
+            }
+            catch
+            {
                 return 0;
             }
         }
@@ -174,13 +222,17 @@ namespace biblioteka
             StatsTextBlock.Text = $"Всего книг: {totalBooks} • Доступно экземпляров: {availableBooks}";
         }
 
+        private void InitializeSearchPlaceholder()
+        {
+            SearchBox.Text = "";
+            SearchBox.Foreground = new SolidColorBrush(Colors.White);
+        }
+
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (allBooksTable == null) return;
 
             string filterText = SearchBox.Text.Trim();
-
-            // Обновляем видимость плейсхолдера
             UpdatePlaceholderVisibility();
 
             if (string.IsNullOrWhiteSpace(filterText))
@@ -196,42 +248,35 @@ namespace biblioteka
                 string escapedText = filterText.Replace("'", "''");
                 string filter = $@"Title LIKE '%{escapedText}%' OR 
                                  Author LIKE '%{escapedText}%' OR 
+                                 AuthorShort LIKE '%{escapedText}%' OR 
                                  UDKCode LIKE '%{escapedText}%' OR 
                                  Description LIKE '%{escapedText}%'";
 
                 DataView view = new DataView(allBooksTable) { RowFilter = filter };
                 BooksDataGrid.ItemsSource = view;
-
                 StatusTextBlock.Text = $"Найдено книг: {view.Count}";
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Ошибка фильтрации: {ex.Message}");
+                // Игнорируем ошибки фильтрации
             }
+        }
+
+        private void UpdatePlaceholderVisibility()
+        {
+            SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void SearchBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            // Убираем плейсхолдер при фокусе
             UpdatePlaceholderVisibility();
         }
 
         private void SearchBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            // Показываем плейсхолдер если поле пустое
             UpdatePlaceholderVisibility();
-        }
-
-        private void UpdatePlaceholderVisibility()
-        {
-            if (string.IsNullOrEmpty(SearchBox.Text))
-            {
-                SearchPlaceholder.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                SearchPlaceholder.Visibility = Visibility.Collapsed;
-            }
         }
 
         private void BooksDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -240,24 +285,27 @@ namespace biblioteka
 
             if (!int.TryParse(row["Identifier"]?.ToString(), out int identifier) || identifier <= 0)
             {
-                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
-                var editWindow = new EditBookWindow(connection, identifier);
+                var editWindow = new EditBookWindow(identifier);
                 editWindow.Owner = this;
                 editWindow.BookUpdated += (s, args) =>
                 {
                     LoadBooks();
                     UpdateStats();
+                    LoadStatistics();
                 };
                 editWindow.ShowDialog();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка открытия редактора: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка открытия редактора: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -265,18 +313,20 @@ namespace biblioteka
         {
             try
             {
-                var addWindow = new AddBookWindow(connection);
+                var addWindow = new AddBookWindow();
                 addWindow.Owner = this;
                 addWindow.BookAdded += (s, args) =>
                 {
                     LoadBooks();
                     UpdateStats();
+                    LoadStatistics();
                 };
                 addWindow.ShowDialog();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка открытия окна добавления: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка открытия окна добавления: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -284,20 +334,22 @@ namespace biblioteka
         {
             if (!(BooksDataGrid.SelectedItem is DataRowView row))
             {
-                MessageBox.Show("Выберите книгу для удаления.", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Выберите книгу для удаления.", "Внимание",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             if (!int.TryParse(row["Identifier"]?.ToString(), out int identifier) || identifier <= 0)
             {
-                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Некорректный идентификатор книги.", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             string bookTitle = row["Title"]?.ToString() ?? "без названия";
             var confirm = MessageBox.Show(
                 $"Вы уверены, что хотите удалить книгу?\n\nID: {identifier}\nНазвание: {bookTitle}\n\nВсе экземпляры книги также будут удалены!",
-                "Подтверждение удаления",
+                "⚠️ Подтверждение удаления",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning,
                 MessageBoxResult.No);
@@ -306,52 +358,50 @@ namespace biblioteka
 
             try
             {
-                connection.Open();
-
-                using (var transaction = connection.BeginTransaction())
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    try
+                    connection.Open();
+                    using (var transaction = connection.BeginTransaction())
                     {
-                        // Удаляем экземпляры
-                        using (var cmd = new OleDbCommand("DELETE FROM BookInstances WHERE BookID = ?", connection, transaction))
+                        try
                         {
-                            cmd.Parameters.AddWithValue("@BookID", identifier);
-                            cmd.ExecuteNonQuery();
-                        }
+                            // Удаляем экземпляры
+                            using (var cmd = new SqlCommand("DELETE FROM BookInstances WHERE BookID = @BookID",
+                                connection, transaction))
+                            {
+                                cmd.Parameters.AddWithValue("@BookID", identifier);
+                                cmd.ExecuteNonQuery();
+                            }
 
-                        // Удаляем связи авторов
-                        using (var cmd = new OleDbCommand("DELETE FROM BookAuthors WHERE BookID = ?", connection, transaction))
+                            // Удаляем книгу
+                            using (var cmd = new SqlCommand("DELETE FROM Books WHERE ID = @ID",
+                                connection, transaction))
+                            {
+                                cmd.Parameters.AddWithValue("@ID", identifier);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            transaction.Commit();
+                            MessageBox.Show("Книга успешно удалена.", "Готово",
+                                MessageBoxButton.OK, MessageBoxImage.Information);
+
+                            LoadStatistics();
+                        }
+                        catch
                         {
-                            cmd.Parameters.AddWithValue("@BookID", identifier);
-                            cmd.ExecuteNonQuery();
+                            transaction.Rollback();
+                            throw;
                         }
-
-                        // Удаляем книгу
-                        using (var cmd = new OleDbCommand("DELETE FROM Books WHERE Identifier = ?", connection, transaction))
-                        {
-                            cmd.Parameters.AddWithValue("@Identifier", identifier);
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        transaction.Commit();
-                        MessageBox.Show("Книга успешно удалена.", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    catch
-                    {
-                        transaction.Rollback();
-                        throw;
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                if (connection?.State == ConnectionState.Open)
-                    connection.Close();
-
                 LoadBooks();
                 UpdateStats();
             }
@@ -361,18 +411,39 @@ namespace biblioteka
         {
             try
             {
-                var issueWindow = new IssueBookWindow(connection);
+                var issueWindow = new IssueBookWindow();
                 issueWindow.Owner = this;
                 if (issueWindow.ShowDialog() == true)
                 {
                     LoadBooks();
                     UpdateStats();
-                    MessageBox.Show("Книга успешно выдана.", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
+                    LoadStatistics();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка открытия окна выдачи: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка открытия окна выдачи: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SellBook_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var sellWindow = new SellBookWindow();
+                sellWindow.Owner = this;
+                if (sellWindow.ShowDialog() == true)
+                {
+                    LoadBooks();
+                    UpdateStats();
+                    LoadStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия окна продажи: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -380,11 +451,12 @@ namespace biblioteka
         {
             try
             {
-                new ReadersInfoWindow(connection) { Owner = this }.ShowDialog();
+                new ReadersInfoWindow().ShowDialog();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка открытия списка читателей: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка открытия списка читателей: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -392,11 +464,41 @@ namespace biblioteka
         {
             try
             {
-                new UDKWindow(connection) { Owner = this }.ShowDialog();
+                new UDKWindow().ShowDialog();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка открытия справочника УДК: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка открытия справочника УДК: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OverdueLoans_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var overdueWindow = new OverdueLoansWindow();
+                overdueWindow.Owner = this;
+                overdueWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия окна должников: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        private void SalesReport_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var reportWindow = new SalesReportWindow();
+                reportWindow.Owner = this;
+                reportWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия отчета по продажам: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

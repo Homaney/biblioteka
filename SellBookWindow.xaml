@@ -1,0 +1,545 @@
+﻿<Window x:Class="biblioteka.SellBookWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="💰 Продажа книги"
+        Height="718" Width="550"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F0F0F"
+        FontFamily="Segoe UI"
+        ResizeMode="NoResize"
+        Loaded="Window_Loaded">
+
+    <Window.Resources>
+        <!-- Цветовая палитра -->
+        <SolidColorBrush x:Key="PrimaryPurple" Color="#8B5CF6"/>
+        <SolidColorBrush x:Key="PrimaryPurpleDark" Color="#7C3AED"/>
+        <SolidColorBrush x:Key="Success" Color="#10B981"/>
+        <SolidColorBrush x:Key="SuccessDark" Color="#059669"/>
+        <SolidColorBrush x:Key="Danger" Color="#EF4444"/>
+        <SolidColorBrush x:Key="DangerDark" Color="#DC2626"/>
+        <SolidColorBrush x:Key="Info" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="InfoDark" Color="#2563EB"/>
+        <SolidColorBrush x:Key="Background" Color="#0F0F0F"/>
+        <SolidColorBrush x:Key="CardBackground" Color="#1A1A1A"/>
+        <SolidColorBrush x:Key="CardBorder" Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA"/>
+        <SolidColorBrush x:Key="TextTertiary" Color="#71717A"/>
+        <SolidColorBrush x:Key="InputBackground" Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="PlaceholderColor" Color="#666666"/>
+
+        <!-- Стиль для ComboBox с плейсхолдером -->
+        <Style x:Key="ComboBoxWithPlaceholder" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid x:Name="templateRoot" SnapsToDevicePixels="true">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition MinWidth="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}" Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <Popup x:Name="PART_Popup" AllowsTransparency="true" Grid.ColumnSpan="2" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Margin="1" PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}" Placement="Bottom">
+                                <Border x:Name="dropDownBorder" Background="{StaticResource InputBackground}" BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="4" MaxHeight="300">
+                                    <ScrollViewer x:Name="DropDownScrollViewer">
+                                        <Grid x:Name="grid" RenderOptions.ClearTypeHint="Enabled">
+                                            <Canvas x:Name="canvas" HorizontalAlignment="Left" Height="0" VerticalAlignment="Top" Width="0">
+                                                <Rectangle x:Name="opaqueRect" Fill="{Binding Background, ElementName=dropDownBorder}" Height="{Binding ActualHeight, ElementName=dropDownBorder}" Width="{Binding ActualWidth, ElementName=dropDownBorder}"/>
+                                            </Canvas>
+                                            <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                        </Grid>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                            <ToggleButton x:Name="toggleButton" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Grid.ColumnSpan="2" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="20"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter ContentTemplate="{TemplateBinding ContentTemplate}" Content="{TemplateBinding Content}" ContentStringFormat="{TemplateBinding ContentStringFormat}" HorizontalAlignment="Left" Margin="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                                <Path x:Name="arrow" Grid.Column="1" Data="F1 M 300,-190L 310,-190L 305,-183L 300,-190 Z" Fill="{StaticResource TextSecondary}" HorizontalAlignment="Center" Margin="0" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="contentPresenter" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Content="{TemplateBinding SelectionBoxItem}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" HorizontalAlignment="Left" IsHitTestVisible="false" Margin="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+
+                            <!-- Плейсхолдер -->
+                            <TextBlock x:Name="placeholderText" 
+                                      Text="{TemplateBinding Tag}" 
+                                      Foreground="{StaticResource PlaceholderColor}" 
+                                      Margin="{TemplateBinding Padding}" 
+                                      VerticalAlignment="Center"
+                                      IsHitTestVisible="False"
+                                      Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryPurple}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="false">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                            <Trigger Property="SelectedItem" Value="{x:Null}">
+                                <Setter TargetName="placeholderText" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="contentPresenter" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для ComboBoxItem с переносом текста -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <TextBlock Text="{Binding}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       TextWrapping="Wrap"
+                                       FontSize="12"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryPurple}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryPurple}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для TextBox - компактный -->
+        <Style x:Key="ModernTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryPurple}"/>
+        </Style>
+
+        <Style x:Key="PlaceholderTextBox" TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <ScrollViewer x:Name="PART_ContentHost" 
+                                              Margin="10,0"
+                                              VerticalAlignment="Center"/>
+                                <TextBlock x:Name="placeholderText"
+                                           Text="{TemplateBinding Tag}"
+                                           Foreground="{StaticResource PlaceholderColor}"
+                                           Margin="10,0"
+                                           VerticalAlignment="Center"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryPurple}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для DatePicker -->
+        <Style TargetType="DatePicker">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="DatePickerTextBox">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Кнопка оформления продажи (зеленая) -->
+        <Style x:Key="SuccessButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Success}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Width" Value="170"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource SuccessDark}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Кнопка отмены (фиолетовая) -->
+        <Style x:Key="CancelButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryPurple}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Width" Value="100"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryPurpleDark}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Кнопка добавления читателя -->
+        <Style x:Key="AddButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryPurple}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6">
+                            <TextBlock Text="+" 
+                                      FontSize="18" 
+                                      FontWeight="Bold"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"
+                                      Foreground="White"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryPurpleDark}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для кнопок +/- -->
+        <Style x:Key="NumericButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource InputBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <TextBlock Text="{TemplateBinding Content}" 
+                                      Foreground="{TemplateBinding Foreground}"
+                                      FontSize="16"
+                                      FontWeight="Bold"
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#252525"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryPurple}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для панели итого -->
+        <Style x:Key="InfoPanel" TargetType="Border">
+            <Setter Property="Background" Value="#252525"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryPurple}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Border Margin="12" Background="{StaticResource CardBackground}" CornerRadius="8" BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="20" MaxWidth="500">
+                <!-- Заголовок -->
+                <TextBlock Text="💰 Продажа книги" 
+                          FontSize="22" 
+                          FontWeight="Bold"
+                          Foreground="{StaticResource TextPrimary}" 
+                          HorizontalAlignment="Center" 
+                          Margin="0,0,0,16"/>
+
+                <!-- Книга -->
+                <TextBlock Text="📕 Книга:" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <ComboBox x:Name="BookComboBox" 
+                         Style="{StaticResource ComboBoxWithPlaceholder}"
+                         Tag="Выберите книгу..."
+                         DisplayMemberPath="Title"
+                         SelectionChanged="BookComboBox_SelectionChanged"
+                         Margin="0,0,0,2"/>
+
+                <!-- Подсказка о доступном количестве -->
+                <TextBlock x:Name="AvailableHint" 
+                          Text=""
+                          Foreground="{StaticResource TextSecondary}"
+                          FontSize="11"
+                          FontStyle="Italic"
+                          Margin="2,2,0,8"
+                          Visibility="Collapsed"/>
+
+                <!-- Покупатель -->
+                <TextBlock Text="👤 Покупатель:" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="ReaderComboBox" 
+                             Grid.Column="0"
+                             Style="{StaticResource ComboBoxWithPlaceholder}"
+                             Tag="Выберите покупателя..."
+                             DisplayMemberPath="FullName"
+                             Height="36"/>
+                    <Button Content="➕" 
+                            Grid.Column="1"
+                            Style="{StaticResource AddButton}"
+                            Click="AddReader_Click"
+                            Margin="8,0,-17,0"
+                            ToolTip="Добавить нового читателя"/>
+                </Grid>
+
+                <!-- Количество -->
+                <TextBlock Text="🔢 Количество:" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="36"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="−" 
+                            Style="{StaticResource NumericButton}" 
+                            Grid.Column="0"
+                            Click="DecreaseQuantity_Click"/>
+
+                    <TextBox x:Name="QuantityBox" 
+                            Text="1" 
+                            Style="{StaticResource PlaceholderTextBox}" 
+                            Tag="Количество"
+                            Grid.Column="1"
+                            Margin="6,0"
+                            Height="36"
+                            TextAlignment="Center"
+                            PreviewTextInput="QuantityBox_PreviewTextInput"
+                            TextChanged="QuantityBox_TextChanged"/>
+
+                    <Button Content="+" 
+                            Style="{StaticResource NumericButton}" 
+                            Grid.Column="2"
+                            Click="IncreaseQuantity_Click"/>
+                </Grid>
+
+                <!-- Цена за единицу -->
+                <TextBlock Text="💰 Цена за единицу (BYN):" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="50"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="PriceBox" 
+                            Style="{StaticResource PlaceholderTextBox}" 
+                            Tag="0.00"
+                            Grid.Column="0"
+                            Height="36"
+                            PreviewTextInput="PriceBox_PreviewTextInput"
+                            TextChanged="PriceBox_TextChanged"/>
+
+                    <TextBlock Text="BYN" 
+                              Grid.Column="1"
+                              Foreground="{StaticResource TextSecondary}"
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Center"
+                              FontSize="13"
+                              Margin="8,0,0,0"/>
+                </Grid>
+
+                <!-- Итого -->
+                <Border Style="{StaticResource InfoPanel}" Margin="0,0,0,15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="ИТОГО:" 
+                                  Foreground="{StaticResource PrimaryPurple}"
+                                  FontSize="15"
+                                  FontWeight="Bold"
+                                  VerticalAlignment="Center"/>
+
+                        <TextBlock x:Name="TotalText" 
+                                  Text="0 BYN"
+                                  Grid.Column="1"
+                                  Foreground="{StaticResource Success}"
+                                  FontSize="18"
+                                  FontWeight="Bold"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Примечание -->
+                <TextBlock Text="📝 Примечание (необязательно):" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <TextBox x:Name="NotesBox" 
+                        Style="{StaticResource PlaceholderTextBox}" 
+                        Tag="Комментарий к продаже"
+                        Height="60"
+                        AcceptsReturn="True"
+                        TextWrapping="Wrap"
+                        VerticalScrollBarVisibility="Auto"
+                        VerticalContentAlignment="Top"
+                        Padding="10,4"
+                        Margin="0,0,0,12"/>
+
+                <!-- Дата продажи -->
+                <TextBlock Text="📅 Дата продажи:" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          FontSize="12" 
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,2"/>
+                <DatePicker x:Name="SaleDatePicker" 
+                           Height="36"
+                           Margin="0,0,0,16"/>
+
+                <!-- Кнопки -->
+                <StackPanel Orientation="Horizontal" 
+                           HorizontalAlignment="Center"
+                           Margin="0,5,0,10">
+                    <Button Content="✅ Оформить продажу" 
+                            Style="{StaticResource SuccessButton}"
+                            Click="SellButton_Click"
+                            Margin="0,0,10,0"/>
+
+                    <Button Content="❌ Отмена" 
+                            Style="{StaticResource CancelButton}"
+                            Click="CancelButton_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</Window>

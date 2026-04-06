@@ -1,64 +1,59 @@
 ﻿using System;
-using System.Data;
-using System.Data.OleDb;
+using System.Data.SqlClient;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Text.RegularExpressions;
-using System.Windows.Controls.Primitives;
 
 namespace biblioteka
 {
     public partial class AddReaderWindow : Window
     {
-        private OleDbConnection connection;
-
-        public AddReaderWindow(OleDbConnection conn)
-        {
-            InitializeComponent();
-            connection = conn;
-
-            // Устанавливаем текущую дату по умолчанию
-            BirthDatePicker.SelectedDate = DateTime.Today.AddYears(-18);
-            RegistrationDatePicker.SelectedDate = DateTime.Today;
-
-            // Применяем темный стиль к DatePicker после загрузки
-            Loaded += (s, e) => ApplyDarkStyleToDatePickers();
-        }
+        private DateTime _minBirthDate; // минимальная разрешённая дата рождения (1900-01-01)
+        private DateTime _maxBirthDate; // максимальная разрешённая дата рождения (сегодня - 14 лет)
 
         public AddReaderWindow()
         {
             InitializeComponent();
-            BirthDatePicker.SelectedDate = DateTime.Today.AddYears(-18);
+
+            // Дата регистрации – сегодня, будущие даты запрещены
             RegistrationDatePicker.SelectedDate = DateTime.Today;
-            Loaded += (s, e) => ApplyDarkStyleToDatePickers();
+            RegistrationDatePicker.DisplayDateEnd = DateTime.Today;
+
+            // Вычисляем диапазон для даты рождения
+            _minBirthDate = new DateTime(1900, 1, 1);
+            _maxBirthDate = DateTime.Today.AddYears(-14); // например, 14 лет назад
+
+            // Устанавливаем ограничения в календаре
+            BirthDatePicker.DisplayDateStart = _minBirthDate;
+            BirthDatePicker.DisplayDateEnd = _maxBirthDate;
+
+            // Устанавливаем начальную дату – максимально допустимую (самую позднюю)
+            BirthDatePicker.SelectedDate = _maxBirthDate;
+
+            // Подписываемся на событие изменения даты (после установки начальной, чтобы не вызвать лишних сообщений)
+            BirthDatePicker.SelectedDateChanged += BirthDatePicker_SelectedDateChanged;
         }
 
-        private void ApplyDarkStyleToDatePickers()
+        private void BirthDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
-            ApplyDarkStyleToDatePicker(BirthDatePicker);
-            ApplyDarkStyleToDatePicker(RegistrationDatePicker);
-        }
+            if (!BirthDatePicker.SelectedDate.HasValue)
+                return;
 
-        private void ApplyDarkStyleToDatePicker(DatePicker datePicker)
-        {
-            datePicker.Loaded += (s, e) =>
+            // Если выбранная дата позже максимальной (моложе 14 лет) – корректируем без сообщения
+            if (BirthDatePicker.SelectedDate.Value > _maxBirthDate)
             {
-                // Простая стилизация - устанавливаем цвет текста
-                var textBox = datePicker.Template.FindName("PART_TextBox", datePicker) as DatePickerTextBox;
-                if (textBox != null)
-                {
-                    textBox.Foreground = System.Windows.Media.Brushes.White;
-                    textBox.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(42, 42, 42));
-                    textBox.BorderThickness = new Thickness(0);
-                }
-            };
+                BirthDatePicker.SelectedDate = _maxBirthDate;
+            }
+            // Если выбранная дата раньше минимальной – корректируем
+            else if (BirthDatePicker.SelectedDate.Value < _minBirthDate)
+            {
+                BirthDatePicker.SelectedDate = _minBirthDate;
+            }
         }
 
-        // Обработчики для телефона
         private void PhoneBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            // Подсказка при фокусе (можно убрать, если не нужно)
             if (string.IsNullOrEmpty(PhoneBox.Text))
             {
                 PhoneBox.Text = "+375";
@@ -68,7 +63,6 @@ namespace biblioteka
 
         private void PhoneBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            // Разрешаем только цифры, плюс, скобки, дефисы и пробелы
             if (!char.IsDigit(e.Text, 0) && e.Text != "+" && e.Text != "(" && e.Text != ")" && e.Text != "-" && e.Text != " ")
             {
                 e.Handled = true;
@@ -81,129 +75,108 @@ namespace biblioteka
             string phone = PhoneBox.Text.Trim();
             string address = AddressBox.Text.Trim();
 
-            // Проверка всех обязательных полей
             if (string.IsNullOrEmpty(fullName))
             {
-                ShowValidationError("Введите ФИО читателя!", FullNameBox);
+                ShowError("Введите ФИО!", FullNameBox);
                 return;
             }
 
             if (string.IsNullOrEmpty(phone) || phone == "+375")
             {
-                ShowValidationError("Введите телефон читателя!", PhoneBox);
+                ShowError("Введите телефон!", PhoneBox);
                 return;
             }
 
-            // Проверка что телефон содержит только разрешенные символы
-            if (!IsValidPhoneFormat(phone))
+            if (!Regex.IsMatch(phone, @"^[\d\+\-\(\)\s]+$"))
             {
-                ShowValidationError("Некорректный формат телефона! Разрешены только цифры, +, (), - и пробелы", PhoneBox);
+                ShowError("Некорректный телефон!", PhoneBox);
                 return;
             }
 
-            // Проверка минимальной длины телефона
             string digitsOnly = Regex.Replace(phone, @"[^\d]", "");
             if (digitsOnly.Length < 7)
             {
-                ShowValidationError("Телефон слишком короткий! Должно быть не менее 7 цифр", PhoneBox);
+                ShowError("Телефон слишком короткий!", PhoneBox);
                 return;
             }
 
             if (digitsOnly.Length > 15)
             {
-                ShowValidationError("Телефон слишком длинный! Максимум 15 цифр", PhoneBox);
+                ShowError("Телефон слишком длинный!", PhoneBox);
                 return;
             }
 
             if (string.IsNullOrEmpty(address))
             {
-                ShowValidationError("Введите адрес читателя!", AddressBox);
+                ShowError("Введите адрес!", AddressBox);
                 return;
             }
 
             if (!BirthDatePicker.SelectedDate.HasValue)
             {
-                ShowValidationError("Выберите дату рождения!", BirthDatePicker);
+                ShowError("Выберите дату рождения!", BirthDatePicker);
                 return;
             }
 
             if (!RegistrationDatePicker.SelectedDate.HasValue)
             {
-                ShowValidationError("Выберите дату регистрации!", RegistrationDatePicker);
+                ShowError("Выберите дату регистрации!", RegistrationDatePicker);
                 return;
             }
 
-            // Проверка что дата рождения не в будущем
-            if (BirthDatePicker.SelectedDate.Value > DateTime.Today)
+            // Финальная проверка (для надёжности)
+            if (BirthDatePicker.SelectedDate.Value > _maxBirthDate)
             {
-                ShowValidationError("Дата рождения не может быть в будущем!", BirthDatePicker);
+                ShowError($"Возраст читателя должен быть не младше 14 лет!\nМаксимальная дата рождения: {_maxBirthDate:dd.MM.yyyy}", BirthDatePicker);
                 return;
             }
 
-            // Проверка что дата регистрации не в будущем
-            if (RegistrationDatePicker.SelectedDate.Value > DateTime.Today)
+            if (BirthDatePicker.SelectedDate.Value < _minBirthDate)
             {
-                ShowValidationError("Дата регистрации не может быть в будущем!", RegistrationDatePicker);
+                ShowError($"Дата рождения не может быть раньше {_minBirthDate:dd.MM.yyyy}!", BirthDatePicker);
                 return;
             }
 
-            // Проверка что дата рождения раньше даты регистрации
             if (BirthDatePicker.SelectedDate.Value >= RegistrationDatePicker.SelectedDate.Value)
             {
-                ShowValidationError("Дата рождения должна быть раньше даты регистрации!", BirthDatePicker);
+                ShowError("Дата рождения должна быть раньше даты регистрации!", BirthDatePicker);
                 return;
             }
 
             try
             {
-                if (connection.State == ConnectionState.Closed)
-                    connection.Open();
-
-                string query = @"
-                    INSERT INTO Readers (FullName, Phone, Address, BirthDate, RegistrationDate) 
-                    VALUES (?, ?, ?, ?, ?)";
-
-                using (OleDbCommand cmd = new OleDbCommand(query, connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    cmd.Parameters.Add("?", OleDbType.VarChar).Value = fullName;
-                    cmd.Parameters.Add("?", OleDbType.VarChar).Value = phone;
-                    cmd.Parameters.Add("?", OleDbType.VarChar).Value = address;
-                    cmd.Parameters.Add("?", OleDbType.Date).Value = BirthDatePicker.SelectedDate.Value;
-                    cmd.Parameters.Add("?", OleDbType.Date).Value = RegistrationDatePicker.SelectedDate.Value;
+                    connection.Open();
+                    string query = @"
+                        INSERT INTO Readers (FullName, Phone, Address, BirthDate, RegistrationDate) 
+                        VALUES (@FullName, @Phone, @Address, @BirthDate, @RegistrationDate)";
 
-                    int rowsAffected = cmd.ExecuteNonQuery();
-
-                    if (rowsAffected > 0)
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        MessageBox.Show("✅ Читатель успешно добавлен!", "Успех",
-                            MessageBoxButton.OK, MessageBoxImage.Information);
-                        DialogResult = true;
-                        Close();
+                        cmd.Parameters.AddWithValue("@FullName", fullName);
+                        cmd.Parameters.AddWithValue("@Phone", phone);
+                        cmd.Parameters.AddWithValue("@Address", address);
+                        cmd.Parameters.AddWithValue("@BirthDate", BirthDatePicker.SelectedDate.Value);
+                        cmd.Parameters.AddWithValue("@RegistrationDate", RegistrationDatePicker.SelectedDate.Value);
+
+                        cmd.ExecuteNonQuery();
                     }
+
+                    DialogResult = true;
+                    Close();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"❌ Ошибка при добавлении читателя: {ex.Message}", "Ошибка",
+                MessageBox.Show($"Ошибка при добавлении: {ex.Message}", "Ошибка",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
-            }
         }
 
-        private bool IsValidPhoneFormat(string phone)
+        private void ShowError(string message, Control control)
         {
-            // Проверяем что телефон содержит только разрешенные символы
-            return Regex.IsMatch(phone, @"^[\d\+\-\(\)\s]+$");
-        }
-
-        private void ShowValidationError(string message, Control control)
-        {
-            MessageBox.Show(message, "Ошибка валидации",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             control.Focus();
         }
     }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,13 +11,12 @@ namespace biblioteka
 {
     public partial class ReadersInfoWindow : Window
     {
-        private OleDbConnection connection;
         private int currentReaderId;
+        private bool isHistoryView = false; // Флаг для отслеживания текущей вкладки
 
-        public ReadersInfoWindow(OleDbConnection conn)
+        public ReadersInfoWindow()
         {
             InitializeComponent();
-            connection = conn;
             LoadReaders();
         }
 
@@ -25,25 +24,24 @@ namespace biblioteka
         {
             try
             {
-                if (connection.State == ConnectionState.Closed)
-                    connection.Open();
-
-                using (OleDbDataAdapter adapter = new OleDbDataAdapter(
-                    "SELECT ID, FullName, Phone, Address, RegistrationDate, BirthDate FROM Readers ORDER BY FullName", connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    DataTable table = new DataTable();
-                    adapter.Fill(table);
-                    ReadersList.ItemsSource = table.DefaultView;
+                    connection.Open();
+                    string query = @"
+                        SELECT ID, FullName, Phone, Address, RegistrationDate, BirthDate 
+                        FROM Readers ORDER BY FullName";
+
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(query, connection))
+                    {
+                        DataTable table = new DataTable();
+                        adapter.Fill(table);
+                        ReadersList.ItemsSource = table.DefaultView;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Ошибка при загрузке читателей: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
             }
         }
 
@@ -57,25 +55,29 @@ namespace biblioteka
                 FullNameText.Text = readerRow["FullName"].ToString();
                 PhoneText.Text = readerRow["Phone"]?.ToString() ?? "не указан";
                 AddressText.Text = readerRow["Address"]?.ToString() ?? "не указан";
-
-                // Даты
                 BirthDateText.Text = GetDateString(readerRow["BirthDate"]);
                 RegistrationDateText.Text = GetDateString(readerRow["RegistrationDate"]);
 
-                // Загружаем текущие книги
-                LoadCurrentBooks(currentReaderId);
+                // Сбрасываем списки перед загрузкой
+                CurrentBooksList.ItemsSource = null;
+                HistoryBooksList.ItemsSource = null;
+
+                // Загружаем книги в зависимости от текущей вкладки
+                if (isHistoryView)
+                {
+                    LoadHistoryBooks(currentReaderId);
+                }
+                else
+                {
+                    LoadCurrentBooks(currentReaderId);
+                }
 
                 // Показываем карточку с анимацией
                 ReaderCard.Visibility = Visibility.Visible;
                 DoubleAnimation fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
                 ReaderCard.BeginAnimation(OpacityProperty, fadeIn);
                 SelectHint.Visibility = Visibility.Collapsed;
-
-                // Показываем кнопку печати
                 PrintButton.Visibility = Visibility.Visible;
-
-                // Активируем вкладку текущих книг
-                SwitchToCurrentBooks(null, null);
             }
             else
             {
@@ -92,41 +94,40 @@ namespace biblioteka
         {
             try
             {
-                string connectionString = connection.ConnectionString;
-                using (var booksConnection = new OleDbConnection(connectionString))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    booksConnection.Open();
-
+                    connection.Open();
                     string query = @"
                         SELECT ib.ID AS IssuedId, b.Title AS BookTitle, bi.InventoryNumber, 
                                ib.IssueDate, ib.PlannedReturnDate, ib.ActualReturnDate, ib.Status
-                        FROM ((IssuedBooks ib INNER JOIN BookInstances bi ON ib.InstanceID = bi.ID)
-                        INNER JOIN Books b ON bi.BookID = b.Identifier)
-                        WHERE ib.ReaderID = ? AND ib.Status = 'Выдана'";
+                        FROM IssuedBooks ib
+                        JOIN BookInstances bi ON ib.InstanceID = bi.ID
+                        JOIN Books b ON bi.BookID = b.ID
+                        WHERE ib.ReaderID = @ReaderID AND ib.Status = N'Выдана'";
 
-                    using (OleDbCommand cmd = new OleDbCommand(query, booksConnection))
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        cmd.Parameters.Add("?", OleDbType.Integer).Value = readerId;
-                        using (OleDbDataAdapter adapter = new OleDbDataAdapter(cmd))
+                        cmd.Parameters.AddWithValue("@ReaderID", readerId);
+                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
                         {
                             DataTable table = new DataTable();
                             adapter.Fill(table);
+
                             var books = new List<dynamic>();
                             foreach (DataRow row in table.Rows)
                             {
                                 DateTime issue = Convert.ToDateTime(row["IssueDate"]);
                                 DateTime planned = Convert.ToDateTime(row["PlannedReturnDate"]);
                                 bool overdue = planned < DateTime.Now && row["ActualReturnDate"] == DBNull.Value;
-                                bool warning = (planned - DateTime.Now).TotalDays <= 3 && (planned - DateTime.Now).TotalDays > 0 && row["ActualReturnDate"] == DBNull.Value;
+                                bool warning = (planned - DateTime.Now).TotalDays <= 3 &&
+                                              (planned - DateTime.Now).TotalDays > 0 &&
+                                              row["ActualReturnDate"] == DBNull.Value;
 
-                                string statusText = overdue ? "ПРОСРОЧЕНА" : warning ? "СКОРО ВОЗВРАТ" : "В СРОК";
+                                string statusText = overdue ? "ПРОСРОЧЕНА" :
+                                                    warning ? "СКОРО ВОЗВРАТ" : "В СРОК";
                                 SolidColorBrush statusColor = overdue ? new SolidColorBrush(Colors.Red) :
-                                                    warning ? new SolidColorBrush(Colors.Yellow) :
-                                                    new SolidColorBrush(Colors.Green);
-
-                                SolidColorBrush cardColor = overdue ? new SolidColorBrush(Color.FromArgb(30, 255, 118, 117)) :
-                                                         warning ? new SolidColorBrush(Color.FromArgb(30, 253, 203, 110)) :
-                                                         new SolidColorBrush(Color.FromArgb(30, 0, 184, 148));
+                                                            warning ? new SolidColorBrush(Colors.Yellow) :
+                                                            new SolidColorBrush(Colors.Green);
 
                                 books.Add(new
                                 {
@@ -135,7 +136,9 @@ namespace biblioteka
                                     InventoryNumber = "Инв. №: " + row["InventoryNumber"].ToString(),
                                     Status = $"Выдано: {issue:dd.MM.yyyy} • Возврат: {planned:dd.MM.yyyy} • {statusText}",
                                     StatusColor = statusColor,
-                                    CardColor = cardColor
+                                    CardColor = overdue ? new SolidColorBrush(Color.FromArgb(30, 255, 118, 117)) :
+                                              warning ? new SolidColorBrush(Color.FromArgb(30, 253, 203, 110)) :
+                                              new SolidColorBrush(Color.FromArgb(30, 0, 184, 148))
                                 });
                             }
                             CurrentBooksList.ItemsSource = books;
@@ -153,26 +156,26 @@ namespace biblioteka
         {
             try
             {
-                string connectionString = connection.ConnectionString;
-                using (var booksConnection = new OleDbConnection(connectionString))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    booksConnection.Open();
-
+                    connection.Open();
                     string query = @"
                         SELECT ib.ID AS IssuedId, b.Title AS BookTitle, bi.InventoryNumber, 
                                ib.IssueDate, ib.PlannedReturnDate, ib.ActualReturnDate, ib.Status
-                        FROM ((IssuedBooks ib INNER JOIN BookInstances bi ON ib.InstanceID = bi.ID)
-                        INNER JOIN Books b ON bi.BookID = b.Identifier)
-                        WHERE ib.ReaderID = ? AND ib.Status = 'Возвращена'
+                        FROM IssuedBooks ib
+                        JOIN BookInstances bi ON ib.InstanceID = bi.ID
+                        JOIN Books b ON bi.BookID = b.ID
+                        WHERE ib.ReaderID = @ReaderID AND ib.Status = 'Возвращена'
                         ORDER BY ib.ActualReturnDate DESC";
 
-                    using (OleDbCommand cmd = new OleDbCommand(query, booksConnection))
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        cmd.Parameters.Add("?", OleDbType.Integer).Value = readerId;
-                        using (OleDbDataAdapter adapter = new OleDbDataAdapter(cmd))
+                        cmd.Parameters.AddWithValue("@ReaderID", readerId);
+                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
                         {
                             DataTable table = new DataTable();
                             adapter.Fill(table);
+
                             var books = new List<dynamic>();
                             foreach (DataRow row in table.Rows)
                             {
@@ -233,18 +236,17 @@ namespace biblioteka
 
                 try
                 {
-                    string connectionString = connection.ConnectionString;
-                    using (var returnConnection = new OleDbConnection(connectionString))
+                    using (var connection = DatabaseHelper.GetConnection())
                     {
-                        returnConnection.Open();
+                        connection.Open();
 
                         int instanceId;
                         DateTime plannedReturnDate;
-                        using (OleDbCommand getInfoCmd = new OleDbCommand(
-                            "SELECT InstanceID, PlannedReturnDate FROM IssuedBooks WHERE ID = ?", returnConnection))
+                        using (SqlCommand getInfoCmd = new SqlCommand(
+                            "SELECT InstanceID, PlannedReturnDate FROM IssuedBooks WHERE ID = @ID", connection))
                         {
-                            getInfoCmd.Parameters.Add("?", OleDbType.Integer).Value = issuedId;
-                            using (OleDbDataReader reader = getInfoCmd.ExecuteReader())
+                            getInfoCmd.Parameters.AddWithValue("@ID", issuedId);
+                            using (SqlDataReader reader = getInfoCmd.ExecuteReader())
                             {
                                 if (reader.Read())
                                 {
@@ -266,20 +268,20 @@ namespace biblioteka
                         bool returnedOnTime = daysDifference <= 0;
 
                         // Обновляем IssuedBooks
-                        using (OleDbCommand updateIssued = new OleDbCommand(
-                            "UPDATE IssuedBooks SET ActualReturnDate = ?, Status = 'Возвращена', ReturnedOnTime = ? WHERE ID = ?", returnConnection))
+                        using (SqlCommand updateIssued = new SqlCommand(
+                            "UPDATE IssuedBooks SET ActualReturnDate = @ActualReturnDate, Status = N'Возвращена', ReturnedOnTime = @ReturnedOnTime WHERE ID = @ID", connection))
                         {
-                            updateIssued.Parameters.Add("?", OleDbType.Date).Value = actualReturnDate;
-                            updateIssued.Parameters.Add("?", OleDbType.Boolean).Value = returnedOnTime;
-                            updateIssued.Parameters.Add("?", OleDbType.Integer).Value = issuedId;
+                            updateIssued.Parameters.AddWithValue("@ActualReturnDate", actualReturnDate);
+                            updateIssued.Parameters.AddWithValue("@ReturnedOnTime", returnedOnTime);
+                            updateIssued.Parameters.AddWithValue("@ID", issuedId);
                             updateIssued.ExecuteNonQuery();
                         }
 
                         // Обновляем BookInstances
-                        using (OleDbCommand updateInstance = new OleDbCommand(
-                            "UPDATE BookInstances SET Status = 'На полке' WHERE ID = ?", returnConnection))
+                        using (SqlCommand updateInstance = new SqlCommand(
+                            "UPDATE BookInstances SET Status = N'Доступна' WHERE ID = @ID", connection))
                         {
-                            updateInstance.Parameters.Add("?", OleDbType.Integer).Value = instanceId;
+                            updateInstance.Parameters.AddWithValue("@ID", instanceId);
                             updateInstance.ExecuteNonQuery();
                         }
 
@@ -289,11 +291,15 @@ namespace biblioteka
 
                         MessageBox.Show(message, "Возврат книги", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                        // Перезагружаем списки книг
-                        if (CurrentBooksList.Visibility == Visibility.Visible)
-                            LoadCurrentBooks(currentReaderId);
-                        else
+                        // Перезагружаем списки книг для текущего читателя
+                        if (isHistoryView)
+                        {
                             LoadHistoryBooks(currentReaderId);
+                        }
+                        else
+                        {
+                            LoadCurrentBooks(currentReaderId);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -306,29 +312,46 @@ namespace biblioteka
 
         private void SwitchToCurrentBooks(object sender, RoutedEventArgs e)
         {
+            isHistoryView = false;
+
             CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
             CurrentBooksTab.Foreground = Brushes.White;
             HistoryTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
             HistoryTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
 
+            // Очищаем историю перед переключением
+            HistoryBooksList.ItemsSource = null;
             CurrentBooksList.Visibility = Visibility.Visible;
             HistoryBooksList.Visibility = Visibility.Collapsed;
-            LoadCurrentBooks(currentReaderId);
+
+            // Загружаем текущие книги для текущего читателя
+            if (currentReaderId > 0)
+            {
+                LoadCurrentBooks(currentReaderId);
+            }
         }
 
         private void SwitchToHistory(object sender, RoutedEventArgs e)
         {
+            isHistoryView = true;
+
             HistoryTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
             HistoryTab.Foreground = Brushes.White;
             CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
             CurrentBooksTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
 
+            // Очищаем текущие книги перед переключением
+            CurrentBooksList.ItemsSource = null;
             HistoryBooksList.Visibility = Visibility.Visible;
             CurrentBooksList.Visibility = Visibility.Collapsed;
-            LoadHistoryBooks(currentReaderId);
+
+            // Загружаем историю для текущего читателя
+            if (currentReaderId > 0)
+            {
+                LoadHistoryBooks(currentReaderId);
+            }
         }
 
-        // НОВЫЙ МЕТОД ДЛЯ ПЕЧАТИ
         private void PrintButton_Click(object sender, RoutedEventArgs e)
         {
             if (ReadersList.SelectedItem == null)
@@ -497,11 +520,27 @@ namespace biblioteka
             grid.Children.Add(valueText);
         }
 
+        private void AddReader_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var addReaderWindow = new AddReaderWindow();
+                addReaderWindow.Owner = this;
+                if (addReaderWindow.ShowDialog() == true)
+                {
+                    LoadReaders();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при добавлении читателя: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             base.OnClosed(e);
-            if (connection.State == ConnectionState.Open)
-                connection.Close();
         }
     }
 }

@@ -1,141 +1,99 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Collections.ObjectModel;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 namespace biblioteka
 {
     public partial class AddBookWindow : Window
     {
-        private readonly OleDbConnection connection;
-        private readonly List<string> authorsList = new List<string>();
-        private readonly DataTable udksTable = new DataTable();
-        private string selectedUDK = "";
+        private List<string> authorsList = new List<string>();
+        private List<UDKItem> udkList = new List<UDKItem>();
         private int selectedUDKId = -1;
-        private ObservableCollection<string> selectedAuthors = new ObservableCollection<string>();
+        private List<string> selectedAuthors = new List<string>();
 
-        // Событие для уведомления о добавлении книги
+        public class UDKItem
+        {
+            public int ID { get; set; }
+            public string Code { get; set; }
+            public string Description { get; set; }
+        }
+
         public event EventHandler BookAdded;
 
-        public AddBookWindow(OleDbConnection conn)
+        public AddBookWindow()
         {
             InitializeComponent();
-            connection = conn;
-            SelectedAuthorsList.ItemsSource = selectedAuthors;
             QuantityBox.Text = "1";
             LoadAuthors();
             LoadUDKs();
+            SelectedAuthorsList.ItemsSource = selectedAuthors;
+
+            // Инициализируем плейсхолдеры для всех текстовых полей
+            InitializePlaceholders();
+
+            // Подписываемся на события для поля автора
+            AuthorInputBox.KeyDown += AuthorInputBox_KeyDown;
         }
 
-        private void LoadAuthors()
+        private void InitializePlaceholders()
         {
-            authorsList.Clear();
-            try
-            {
-                if (connection.State != ConnectionState.Open)
-                    connection.Open();
-
-                using (var cmd = new OleDbCommand("SELECT FullName FROM Authors ORDER BY FullName", connection))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        if (!reader.IsDBNull(0))
-                        {
-                            string name = reader.GetString(0);
-                            if (!string.IsNullOrWhiteSpace(name))
-                                authorsList.Add(name);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка загрузки авторов: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
-            }
+            AddPlaceholderBehavior(IdentifierBox);
+            AddPlaceholderBehavior(TitleBox);
+            AddPlaceholderBehavior(YearBox);
+            AddPlaceholderBehavior(DescriptionBox);
+            AddPlaceholderBehavior(AuthorInputBox);
+            AddPlaceholderBehavior(UDKDisplayBox);
         }
 
-        private void LoadUDKs()
+        private void AddPlaceholderBehavior(TextBox textBox)
         {
-            try
-            {
-                udksTable.Clear();
-                if (connection.State != ConnectionState.Open)
-                    connection.Open();
+            if (textBox == null) return;
 
-                var adapter = new OleDbDataAdapter("SELECT ID, Code, Description FROM UDK ORDER BY Code", connection);
-                adapter.Fill(udksTable);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка загрузки УДК: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
-            }
+            textBox.GotFocus += (s, e) => UpdatePlaceholderVisibility(textBox);
+            textBox.LostFocus += (s, e) => UpdatePlaceholderVisibility(textBox);
+            textBox.TextChanged += (s, e) => UpdatePlaceholderVisibility(textBox);
+
+            UpdatePlaceholderVisibility(textBox);
         }
 
-        private void AuthorDropdown_Click(object sender, RoutedEventArgs e)
+        private void UpdatePlaceholderVisibility(TextBox textBox)
         {
-            var contextMenu = new ContextMenu();
+            if (textBox == null) return;
 
-            foreach (var author in authorsList)
+            var template = textBox.Template;
+            if (template == null) return;
+
+            var placeholder = template.FindName("placeholderText", textBox) as TextBlock;
+            if (placeholder == null) return;
+
+            if (textBox.IsReadOnly)
             {
-                var menuItem = new MenuItem { Header = author, Tag = author };
-                menuItem.Click += (s, args) =>
-                {
-                    AuthorInputBox.Text = author;
-                };
-                contextMenu.Items.Add(menuItem);
+                placeholder.Visibility = Visibility.Collapsed;
+                return;
             }
 
-            contextMenu.PlacementTarget = sender as Button;
-            contextMenu.IsOpen = true;
+            bool shouldShow = string.IsNullOrEmpty(textBox.Text) && !textBox.IsFocused;
+            placeholder.Visibility = shouldShow ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void UDKDropdown_Click(object sender, RoutedEventArgs e)
+        private void AuthorInputBox_KeyDown(object sender, KeyEventArgs e)
         {
-            var contextMenu = new ContextMenu();
-
-            foreach (DataRow row in udksTable.Rows)
+            if (e.Key == Key.Enter)
             {
-                string code = row["Code"]?.ToString() ?? "—";
-                string desc = row["Description"]?.ToString() ?? "—";
-                int udkId = Convert.ToInt32(row["ID"]);
-
-                var menuItem = new MenuItem
-                {
-                    Header = $"{code} - {desc}",
-                    Tag = udkId
-                };
-                menuItem.Click += (s, args) =>
-                {
-                    selectedUDKId = udkId;
-                    selectedUDK = code;
-                    UDKDisplayBox.Text = code;
-                };
-                contextMenu.Items.Add(menuItem);
+                AddAuthorFromInput();
+                e.Handled = true;
             }
-
-            contextMenu.PlacementTarget = sender as Button;
-            contextMenu.IsOpen = true;
         }
 
-        private void AddAuthor_Click(object sender, RoutedEventArgs e)
+        private void AddAuthorFromInput()
         {
             string authorToAdd = AuthorInputBox.Text.Trim();
-
             if (string.IsNullOrWhiteSpace(authorToAdd))
             {
                 MessageBox.Show("Введите имя автора");
@@ -153,7 +111,6 @@ namespace biblioteka
                 }
                 else
                 {
-                    MessageBox.Show("Не удалось добавить автора в базу данных");
                     return;
                 }
             }
@@ -162,35 +119,144 @@ namespace biblioteka
             if (!selectedAuthors.Contains(authorToAdd))
             {
                 selectedAuthors.Add(authorToAdd);
+                SelectedAuthorsList.Items.Refresh();
             }
 
-            // Очищаем поле ввода
             AuthorInputBox.Text = "";
+            AuthorsPopup.IsOpen = false;
+        }
+
+        private void LoadAuthors()
+        {
+            try
+            {
+                using (var connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT FullName FROM Authors ORDER BY FullName";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        authorsList.Clear();
+                        while (reader.Read())
+                        {
+                            if (!reader.IsDBNull(0))
+                                authorsList.Add(reader.GetString(0));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки авторов: " + ex.Message);
+            }
+        }
+
+        private void LoadUDKs()
+        {
+            try
+            {
+                using (var connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT ID, Code, Description FROM UDK ORDER BY Code";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        udkList.Clear();
+                        while (reader.Read())
+                        {
+                            udkList.Add(new UDKItem
+                            {
+                                ID = reader.GetInt32(0),
+                                Code = reader.GetString(1),
+                                Description = reader.IsDBNull(2) ? "" : reader.GetString(2)
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки УДК: " + ex.Message);
+            }
+        }
+
+        private void AuthorDropdown_Click(object sender, RoutedEventArgs e)
+        {
+            if (authorsList.Count == 0)
+            {
+                MessageBox.Show("Список авторов пуст. Сначала добавьте авторов.", "Информация",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            AuthorsListBox.ItemsSource = null;
+            AuthorsListBox.ItemsSource = authorsList;
+            AuthorsPopup.IsOpen = true;
+            AuthorsPopup.StaysOpen = false;
+        }
+
+        private void AuthorItem_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is string selectedAuthor)
+            {
+                AuthorInputBox.Text = selectedAuthor;
+                AuthorsPopup.IsOpen = false;
+                e.Handled = true;
+            }
+        }
+
+        private void UDKDropdown_Click(object sender, RoutedEventArgs e)
+        {
+            if (udkList.Count == 0)
+            {
+                MessageBox.Show("Список УДК пуст. Сначала добавьте УДК.", "Информация",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            UDKListBox.ItemsSource = null;
+            UDKListBox.ItemsSource = udkList;
+            UDKPopup.IsOpen = true;
+            UDKPopup.StaysOpen = false;
+        }
+
+        private void UDKItem_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is UDKItem selectedUDK)
+            {
+                selectedUDKId = selectedUDK.ID;
+                UDKDisplayBox.Text = selectedUDK.Code;
+                UDKPopup.IsOpen = false;
+                e.Handled = true;
+            }
+        }
+
+        private void AddAuthor_Click(object sender, RoutedEventArgs e)
+        {
+            AddAuthorFromInput();
         }
 
         private bool AddNewAuthorToDatabase(string authorName)
         {
             try
             {
-                if (connection.State != ConnectionState.Open)
-                    connection.Open();
-
-                using (var cmd = new OleDbCommand("INSERT INTO Authors (FullName) VALUES (?)", connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    cmd.Parameters.AddWithValue("@FullName", authorName);
-                    int result = cmd.ExecuteNonQuery();
-                    return result > 0;
+                    connection.Open();
+                    string query = "INSERT INTO Authors (FullName) VALUES (@FullName)";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@FullName", authorName);
+                        return cmd.ExecuteNonQuery() > 0;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при добавлении автора в базу: " + ex.Message);
+                MessageBox.Show("Ошибка при добавлении автора: " + ex.Message);
                 return false;
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
             }
         }
 
@@ -199,26 +265,17 @@ namespace biblioteka
             if (sender is Button btn && btn.Tag is string author)
             {
                 selectedAuthors.Remove(author);
+                SelectedAuthorsList.Items.Refresh();
             }
         }
 
         private void AddUDKButton_Click(object sender, RoutedEventArgs e)
         {
-            var addUDKWindow = new AddUDKWindow(connection);
+            var addUDKWindow = new AddUDKWindow();
             addUDKWindow.Owner = this;
             if (addUDKWindow.ShowDialog() == true)
             {
-                // Обновляем список УДК после успешного добавления
                 LoadUDKs();
-            }
-        }
-
-        private void NumericTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
-        {
-            // Разрешаем только цифры
-            if (!char.IsDigit(e.Text, 0))
-            {
-                e.Handled = true;
             }
         }
 
@@ -228,10 +285,6 @@ namespace biblioteka
             {
                 quantity++;
                 QuantityBox.Text = quantity.ToString();
-            }
-            else
-            {
-                QuantityBox.Text = "1";
             }
         }
 
@@ -244,236 +297,138 @@ namespace biblioteka
             }
         }
 
+        private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (!char.IsDigit(e.Text, 0))
+            {
+                e.Handled = true;
+            }
+        }
+
         private void AddBook_Click(object sender, RoutedEventArgs e)
         {
-            try
+            string title = TitleBox.Text.Trim();
+            string year = YearBox.Text.Trim();
+            string description = DescriptionBox.Text.Trim();
+
+            if (!int.TryParse(QuantityBox.Text, out int quantity) || quantity < 1)
             {
-                string id = IdentifierBox.Text.Trim();
-                string title = TitleBox.Text.Trim();
-                string year = YearBox.Text.Trim();
-                string description = DescriptionBox.Text.Trim();
-
-                // Получаем количество экземпляров
-                if (!int.TryParse(QuantityBox.Text, out int quantity) || quantity < 1)
-                {
-                    MessageBox.Show("Введите корректное количество экземпляров (не менее 1)");
-                    QuantityBox.Focus();
-                    return;
-                }
-
-                // Проверка обязательных полей
-                if (string.IsNullOrEmpty(id))
-                {
-                    MessageBox.Show("Введите ID книги");
-                    IdentifierBox.Focus();
-                    return;
-                }
-
-                if (!int.TryParse(id, out int bookId))
-                {
-                    MessageBox.Show("ID книги должен быть числом");
-                    IdentifierBox.Focus();
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(title))
-                {
-                    MessageBox.Show("Введите название книги");
-                    TitleBox.Focus();
-                    return;
-                }
-
-                if (selectedAuthors.Count == 0)
-                {
-                    MessageBox.Show("Добавьте хотя бы одного автора");
-                    return;
-                }
-
-                if (selectedUDKId == -1)
-                {
-                    MessageBox.Show("Выберите УДК из списка");
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(year))
-                {
-                    MessageBox.Show("Введите год издания");
-                    YearBox.Focus();
-                    return;
-                }
-
-                // Проверяем что год - число
-                if (!int.TryParse(year, out int yearValue))
-                {
-                    MessageBox.Show("Год должен быть числом");
-                    YearBox.Focus();
-                    return;
-                }
-
-                if (yearValue < 1000 || yearValue > DateTime.Now.Year + 5)
-                {
-                    MessageBox.Show("Год должен быть числом от 1000 до " + (DateTime.Now.Year + 5));
-                    YearBox.Focus();
-                    return;
-                }
-
-                // Сохраняем книгу в базу данных
-                if (SaveBookToDatabase(bookId, title, selectedAuthors.ToList(), selectedUDKId, yearValue, description, quantity))
-                {
-                    MessageBox.Show($"Книга успешно добавлена в базу данных!\n\nID: {bookId}\nНазвание: {title}\nАвторы: {string.Join(", ", selectedAuthors)}\nУДК: {selectedUDK}\nГод: {year}\nКоличество экземпляров: {quantity}");
-
-                    // Вызываем событие добавления книги
-                    BookAdded?.Invoke(this, EventArgs.Empty);
-
-                    ClearForm();
-                }
-                else
-                {
-                    MessageBox.Show("Ошибка при сохранении книги в базу данных");
-                }
+                MessageBox.Show("Введите корректное количество экземпляров");
+                QuantityBox.Focus();
+                return;
             }
-            catch (Exception ex)
+
+            if (string.IsNullOrEmpty(title))
             {
-                MessageBox.Show("Ошибка при добавлении книги: " + ex.Message);
+                MessageBox.Show("Введите название книги");
+                TitleBox.Focus();
+                return;
+            }
+
+            if (selectedAuthors.Count == 0)
+            {
+                MessageBox.Show("Добавьте хотя бы одного автора");
+                return;
+            }
+
+            if (selectedUDKId == -1)
+            {
+                MessageBox.Show("Выберите УДК из списка");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(year) || !int.TryParse(year, out int yearValue))
+            {
+                MessageBox.Show("Введите корректный год издания");
+                YearBox.Focus();
+                return;
+            }
+
+            if (yearValue < 1000 || yearValue > DateTime.Now.Year + 5)
+            {
+                MessageBox.Show($"Год должен быть от 1000 до {DateTime.Now.Year + 5}");
+                YearBox.Focus();
+                return;
+            }
+
+            if (SaveBookToDatabase(title, selectedAuthors, selectedUDKId, yearValue, description, quantity))
+            {
+                MessageBox.Show($"Книга успешно добавлена!");
+                BookAdded?.Invoke(this, EventArgs.Empty);
+                ClearForm();
             }
         }
 
-        private bool SaveBookToDatabase(int id, string title, List<string> authors, int udkId, int year, string description, int quantity)
+        private bool SaveBookToDatabase(string title, List<string> authors, int udkId, int year,
+            string description, int quantity)
         {
             try
             {
-                if (connection.State != ConnectionState.Open)
-                    connection.Open();
-
-                using (var transaction = connection.BeginTransaction())
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    try
+                    connection.Open();
+                    using (var transaction = connection.BeginTransaction())
                     {
-                        // Проверяем, существует ли уже книга с таким ID
-                        using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM Books WHERE Identifier = ?", connection, transaction))
+                        try
                         {
-                            checkCmd.Parameters.AddWithValue("@Identifier", id);
-                            int existingCount = Convert.ToInt32(checkCmd.ExecuteScalar());
-                            if (existingCount > 0)
+                            // Преобразуем список авторов в строку через запятую
+                            string authorsString = string.Join(", ", authors);
+
+                            // Добавляем книгу
+                            string bookQuery = @"
+                                INSERT INTO Books (Title, Yearr, UDK_ID, Description, Price, Authors)
+                                OUTPUT INSERTED.ID
+                                VALUES (@Title, @Yearr, @UDK_ID, @Description, 0, @Authors)";
+
+                            int bookId;
+                            using (SqlCommand cmd = new SqlCommand(bookQuery, connection, transaction))
                             {
-                                MessageBox.Show("Книга с таким ID уже существует в базе данных");
-                                transaction.Rollback();
-                                return false;
-                            }
-                        }
+                                cmd.Parameters.AddWithValue("@Title", title);
+                                cmd.Parameters.AddWithValue("@Yearr", year);
+                                cmd.Parameters.AddWithValue("@UDK_ID", udkId);
+                                cmd.Parameters.AddWithValue("@Description",
+                                    string.IsNullOrEmpty(description) ? DBNull.Value : (object)description);
+                                cmd.Parameters.AddWithValue("@Authors", authorsString);
 
-                        // Добавляем книгу в таблицу Books
-                        using (var cmd = new OleDbCommand(
-                            "INSERT INTO Books (Identifier, Title, Yearr, UDK_ID, Description) VALUES (?, ?, ?, ?, ?)",
-                            connection, transaction))
-                        {
-                            cmd.Parameters.AddWithValue("@Identifier", id);
-                            cmd.Parameters.AddWithValue("@Title", title);
-                            cmd.Parameters.AddWithValue("@Yearr", year);
-                            cmd.Parameters.AddWithValue("@UDK_ID", udkId);
-                            cmd.Parameters.AddWithValue("@Description", string.IsNullOrEmpty(description) ? DBNull.Value : (object)description);
-
-                            int booksResult = cmd.ExecuteNonQuery();
-                            if (booksResult == 0)
-                            {
-                                transaction.Rollback();
-                                MessageBox.Show("Не удалось добавить книгу в таблицу Books");
-                                return false;
-                            }
-                        }
-
-                        // Создаем экземпляры книги в таблице BookInstances
-                        for (int i = 0; i < quantity; i++)
-                        {
-                            string inventoryNumber = $"{id}-{i + 1:000}";
-
-                            using (var instanceCmd = new OleDbCommand(
-                                "INSERT INTO BookInstances (BookID, InventoryNumber, Status, AcquisitionDate) VALUES (?, ?, ?, ?)",
-                                connection, transaction))
-                            {
-                                instanceCmd.Parameters.AddWithValue("@BookID", id);
-                                instanceCmd.Parameters.AddWithValue("@InventoryNumber", inventoryNumber);
-                                instanceCmd.Parameters.AddWithValue("@Status", "Доступна");
-                                instanceCmd.Parameters.AddWithValue("@AcquisitionDate", DateTime.Now.Date);
-
-                                instanceCmd.ExecuteNonQuery();
-                            }
-                        }
-
-                        // Добавляем связи книга-автор в таблицу BookAuthors
-                        foreach (var author in authors)
-                        {
-                            // Получаем ID автора
-                            int authorId = GetAuthorId(author, transaction);
-                            if (authorId == -1)
-                            {
-                                transaction.Rollback();
-                                MessageBox.Show($"Ошибка: автор '{author}' не найден в базе данных");
-                                return false;
+                                bookId = (int)cmd.ExecuteScalar();
                             }
 
-                            // Проверяем, существует ли уже такая связь
-                            using (var checkLinkCmd = new OleDbCommand(
-                                "SELECT COUNT(*) FROM BookAuthors WHERE BookID = ? AND AuthorID = ?",
-                                connection, transaction))
+                            // Добавляем экземпляры
+                            for (int i = 0; i < quantity; i++)
                             {
-                                checkLinkCmd.Parameters.AddWithValue("@BookID", id);
-                                checkLinkCmd.Parameters.AddWithValue("@AuthorID", authorId);
-                                int linkCount = Convert.ToInt32(checkLinkCmd.ExecuteScalar());
+                                string inventoryNumber = $"{bookId}-{i + 1:000}";
+                                string instanceQuery = @"
+                                    INSERT INTO BookInstances (BookID, InventoryNumber, Status, CanBeSold)
+                                    VALUES (@BookID, @InventoryNumber, N'Доступна', 1)";
 
-                                if (linkCount == 0)
+                                using (SqlCommand cmd = new SqlCommand(instanceQuery, connection, transaction))
                                 {
-                                    // Добавляем связь только если её нет
-                                    using (var linkCmd = new OleDbCommand(
-                                        "INSERT INTO BookAuthors (BookID, AuthorID) VALUES (?, ?)",
-                                        connection, transaction))
-                                    {
-                                        linkCmd.Parameters.AddWithValue("@BookID", id);
-                                        linkCmd.Parameters.AddWithValue("@AuthorID", authorId);
-                                        linkCmd.ExecuteNonQuery();
-                                    }
+                                    cmd.Parameters.AddWithValue("@BookID", bookId);
+                                    cmd.Parameters.AddWithValue("@InventoryNumber", inventoryNumber);
+                                    cmd.ExecuteNonQuery();
                                 }
                             }
+
+                            transaction.Commit();
+                            MessageBox.Show($"Книга успешно добавлена!\n\nID: {bookId}\nНазвание: {title}\nАвторы: {authorsString}\nУДК: {udkId}\nГод: {year}\nКоличество экземпляров: {quantity}",
+                                "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                            return true;
                         }
-
-                        transaction.Commit();
-                        return true;
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        MessageBox.Show("Ошибка при сохранении книги: " + ex.Message + "\n\nДетали: " + ex.InnerException?.Message);
-                        return false;
+                        catch (Exception ex)
+                        {
+                            transaction.Rollback();
+                            MessageBox.Show("Ошибка при сохранении: " + ex.Message, "Ошибка",
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                            return false;
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка подключения к базе данных: " + ex.Message);
+                MessageBox.Show("Ошибка подключения к базе данных: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
-            }
-        }
-
-        private int GetAuthorId(string authorName, OleDbTransaction transaction)
-        {
-            try
-            {
-                using (var cmd = new OleDbCommand("SELECT ID FROM Authors WHERE FullName = ?", connection, transaction))
-                {
-                    cmd.Parameters.AddWithValue("@FullName", authorName);
-                    var result = cmd.ExecuteScalar();
-                    return result != null ? Convert.ToInt32(result) : -1;
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при получении ID автора '{authorName}': {ex.Message}");
-                return -1;
             }
         }
 
@@ -486,9 +441,16 @@ namespace biblioteka
             selectedAuthors.Clear();
             AuthorInputBox.Text = "";
             UDKDisplayBox.Text = "";
-            selectedUDK = "";
             selectedUDKId = -1;
             QuantityBox.Text = "1";
+            SelectedAuthorsList.Items.Refresh();
+
+            UpdatePlaceholderVisibility(IdentifierBox);
+            UpdatePlaceholderVisibility(TitleBox);
+            UpdatePlaceholderVisibility(YearBox);
+            UpdatePlaceholderVisibility(DescriptionBox);
+            UpdatePlaceholderVisibility(AuthorInputBox);
+            UpdatePlaceholderVisibility(UDKDisplayBox);
         }
     }
 }

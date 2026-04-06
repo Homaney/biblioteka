@@ -13,9 +13,91 @@
         <SolidColorBrush x:Key="CardBg" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="Border" Color="#333333"/>
         <SolidColorBrush x:Key="AccentColor" Color="#6C5CE7"/>
+        <SolidColorBrush x:Key="AccentColorDark" Color="#5A4BC7"/>
+        <SolidColorBrush x:Key="SuccessColor" Color="#00B894"/>
+        <SolidColorBrush x:Key="SuccessColorDark" Color="#00A884"/>
         <SolidColorBrush x:Key="OverdueColor" Color="#FF7675"/>
         <SolidColorBrush x:Key="WarningColor" Color="#FDCB6E"/>
-        <SolidColorBrush x:Key="SuccessColor" Color="#00B894"/>
+
+        <!-- Стиль для кнопки добавления (зеленая) -->
+        <Style x:Key="AddReaderButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource SuccessColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"
+                                        Margin="0">
+                                <TextBlock Text="➕" 
+                                           FontSize="14" 
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{TemplateBinding Content}" 
+                                           FontSize="13" 
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource SuccessColorDark}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для кнопки печати (фиолетовая) -->
+        <Style x:Key="PrintButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"
+                                        Margin="0">
+                                <TextBlock Text="🖨️" 
+                                           FontSize="14" 
+                                           Margin="0,0,4,0"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{TemplateBinding Content}" 
+                                           FontSize="13" 
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource AccentColorDark}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="20">
@@ -28,22 +110,25 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Тулбар с кнопкой печати -->
-        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0 0 0 10">
+        <!-- Тулбар с кнопками -->
+        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" 
+                    VerticalAlignment="Center"
+                    Margin="0 0 0 10">
             <TextBlock Text="📚 Управление читателями"
                        FontWeight="Bold" FontSize="20"
                        Foreground="{StaticResource TextPrimary}"
                        VerticalAlignment="Center"/>
 
-            <Button x:Name="PrintButton"
-                    Content="🖨️ Печать карточки"
-                    Background="{StaticResource AccentColor}"
-                    Foreground="White"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Height="30"
+            <Button x:Name="AddReaderButton"
+                    Content="Добавить читателя"
+                    Style="{StaticResource AddReaderButton}"
                     Margin="20,0,0,0"
-                    Padding="10,0"
+                    Click="AddReader_Click"/>
+
+            <Button x:Name="PrintButton"
+                    Content="Печать карточки"
+                    Style="{StaticResource PrintButtonStyle}"
+                    Margin="10,0,0,0"
                     Click="PrintButton_Click"
                     Visibility="Collapsed"/>
         </StackPanel>

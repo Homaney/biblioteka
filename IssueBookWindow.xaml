@@ -1,6 +1,7 @@
 ﻿<Window x:Class="biblioteka.IssueBookWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="📖 Выдача книги"
         Height="654" Width="700"
         WindowStartupLocation="CenterOwner"
@@ -147,7 +148,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- Стиль для TextBox внутри DatePicker -->
         <Style TargetType="DatePickerTextBox">
             <Setter Property="Background" Value="{StaticResource InputBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -274,7 +274,9 @@
                                   FontSize="14" 
                                   FontWeight="SemiBold"
                                   Margin="0,0,0,6"/>
-                        <DatePicker x:Name="IssueDatePicker" Height="28"/>
+                        <DatePicker x:Name="IssueDatePicker" 
+                                   Height="28"
+                                   DisplayDateEnd="{x:Static sys:DateTime.Today}"/>
                     </StackPanel>
 
                     <!-- Дата возврата -->

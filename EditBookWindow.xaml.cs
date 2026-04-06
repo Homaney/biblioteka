@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,317 +12,153 @@ namespace biblioteka
 {
     public partial class EditBookWindow : Window
     {
-        private readonly string connectionString;
-        private readonly int bookId;
-        private int selectedUDKId = -1;
-        private int availableInstancesCount = 0;
-        private ContextMenu authorsContextMenu;
-        private ContextMenu udkContextMenu;
+        private readonly int _bookId;
+        private int _selectedUDKId = -1;
+        private int _availableInstancesCount = 0;
+        private List<string> _authorsList = new List<string>();
+        private DataTable _udksTable = new DataTable();
+        private List<string> _selectedAuthors = new List<string>();
 
         public event EventHandler BookUpdated;
 
-        public EditBookWindow(OleDbConnection conn, int id)
+        public EditBookWindow(int id)
         {
             InitializeComponent();
-            connectionString = conn.ConnectionString; // Сохраняем строку подключения
-            bookId = id;
-            InitializeContextMenus();
+            _bookId = id;
+            SelectedAuthorsList.ItemsSource = _selectedAuthors;
             Loaded += (s, e) => LoadData();
-        }
-
-        private void InitializeContextMenus()
-        {
-            // Создаем ContextMenu для авторов
-            authorsContextMenu = new ContextMenu
-            {
-                Background = (Brush)FindResource("CardBackground"),
-                BorderBrush = (Brush)FindResource("CardBorder"),
-                BorderThickness = new Thickness(1)
-            };
-
-            // Создаем ContextMenu для УДК
-            udkContextMenu = new ContextMenu
-            {
-                Background = (Brush)FindResource("CardBackground"),
-                BorderBrush = (Brush)FindResource("CardBorder"),
-                BorderThickness = new Thickness(1)
-            };
         }
 
         private void LoadData()
         {
-            using (var connection = new OleDbConnection(connectionString))
+            try
             {
-                try
+                using (var connection = DatabaseHelper.GetConnection())
                 {
                     connection.Open();
 
-                    // Загружаем авторов
-                    var authors = new List<string>();
-                    using (var cmd = new OleDbCommand("SELECT FullName FROM Authors ORDER BY FullName", connection))
-                    using (var reader = cmd.ExecuteReader())
+                    // Загружаем всех авторов
+                    string authorsQuery = "SELECT FullName FROM Authors ORDER BY FullName";
+                    using (SqlCommand cmd = new SqlCommand(authorsQuery, connection))
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
+                        _authorsList.Clear();
                         while (reader.Read())
                         {
                             if (!reader.IsDBNull(0))
-                                authors.Add(reader.GetString(0));
+                                _authorsList.Add(reader.GetString(0));
                         }
                     }
 
                     // Загружаем УДК
-                    var udks = new DataTable();
-                    using (var adapter = new OleDbDataAdapter("SELECT ID, Code FROM UDK ORDER BY Code", connection))
+                    string udkQuery = "SELECT ID, Code FROM UDK ORDER BY Code";
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(udkQuery, connection))
                     {
-                        adapter.Fill(udks);
+                        adapter.Fill(_udksTable);
                     }
 
                     // Загружаем данные книги
-                    using (var cmd = new OleDbCommand(
-                        "SELECT Title, Yearr, UDK_ID, Description FROM Books WHERE Identifier = ?", connection))
+                    string bookQuery = @"
+                        SELECT Title, Yearr, UDK_ID, Description, Price, Authors
+                        FROM Books WHERE ID = @ID";
+
+                    using (SqlCommand cmd = new SqlCommand(bookQuery, connection))
                     {
-                        cmd.Parameters.AddWithValue("@Identifier", bookId);
-                        using (var reader = cmd.ExecuteReader())
+                        cmd.Parameters.AddWithValue("@ID", _bookId);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
                         {
                             if (reader.Read())
                             {
-                                TitleBox.Text = SafeGetValue(reader, "Title");
-                                YearBox.Text = SafeGetValue(reader, "Yearr");
-                                DescriptionBox.Text = SafeGetValue(reader, "Description");
+                                TitleBox.Text = reader["Title"]?.ToString() ?? "";
+                                YearBox.Text = reader["Yearr"]?.ToString() ?? "";
+                                DescriptionBox.Text = reader["Description"]?.ToString() ?? "";
+                                PriceBox.Text = reader["Price"] != DBNull.Value
+                                    ? ((decimal)reader["Price"]).ToString("F2") : "0.00";
 
-                                var udkIdObj = SafeGetObject(reader, "UDK_ID");
-                                if (udkIdObj != null && udkIdObj != DBNull.Value)
+                                // Загружаем авторов из строки (разделены запятыми)
+                                string authors = reader["Authors"]?.ToString() ?? "";
+                                if (!string.IsNullOrEmpty(authors))
                                 {
-                                    selectedUDKId = Convert.ToInt32(udkIdObj);
-                                    // Устанавливаем текст УДК
-                                    foreach (DataRowView row in udks.DefaultView)
+                                    _selectedAuthors.Clear();
+                                    foreach (string author in authors.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                                     {
-                                        if (Convert.ToInt32(row["ID"]) == selectedUDKId)
-                                        {
-                                            UDKTextBox.Text = row["Code"].ToString();
-                                            break;
-                                        }
+                                        _selectedAuthors.Add(author.Trim());
                                     }
                                 }
-                                else
+
+                                if (reader["UDK_ID"] != DBNull.Value)
                                 {
-                                    UDKTextBox.Text = "Выберите УДК...";
-                                    UDKTextBox.Foreground = new SolidColorBrush(Colors.Gray);
+                                    _selectedUDKId = Convert.ToInt32(reader["UDK_ID"]);
+                                    var udkRow = _udksTable.Select($"ID = {_selectedUDKId}").FirstOrDefault();
+                                    if (udkRow != null)
+                                        UDKTextBox.Text = udkRow["Code"].ToString();
                                 }
                             }
-                            else
-                            {
-                                MessageBox.Show("Книга не найдена", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                                Close();
-                                return;
-                            }
                         }
                     }
 
-                    // Загружаем авторов книги
-                    using (var cmd = new OleDbCommand(
-                        @"SELECT a.FullName FROM Authors a 
-                      INNER JOIN BookAuthors ba ON a.ID = ba.AuthorID 
-                      WHERE ba.BookID = ?", connection))
-                    {
-                        cmd.Parameters.AddWithValue("@BookID", bookId);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            SelectedAuthorsList.Items.Clear();
-                            while (reader.Read())
-                            {
-                                if (!reader.IsDBNull(0))
-                                    SelectedAuthorsList.Items.Add(reader.GetString(0));
-                            }
-                        }
-                    }
-
-                    // Инициализируем текстовые поля
-                    AuthorsTextBox.Text = "Выберите автора...";
-                    AuthorsTextBox.Foreground = new SolidColorBrush(Colors.Gray);
-
-                    if (string.IsNullOrEmpty(UDKTextBox.Text))
-                    {
-                        UDKTextBox.Text = "Выберите УДК...";
-                        UDKTextBox.Foreground = new SolidColorBrush(Colors.Gray);
-                    }
-
-                    // Загружаем количество доступных экземпляров
                     UpdateInstancesCount(connection);
+                    IdentifierLabel.Text = $"ID: {_bookId}";
 
-                    IdentifierLabel.Text = $"ID: {bookId}";
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка загрузки данных: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    Close();
-                }
-            }
-        }
-
-        private void UpdateInstancesCount(OleDbConnection connection)
-        {
-            try
-            {
-                string query = "SELECT COUNT(*) FROM BookInstances WHERE BookID = ? AND Status = 'На полке'";
-                using (var cmd = new OleDbCommand(query, connection))
-                {
-                    cmd.Parameters.Add("@BookID", OleDbType.Integer).Value = bookId;
-                    object result = cmd.ExecuteScalar();
-                    availableInstancesCount = result != null ? Convert.ToInt32(result) : 0;
-                    InstancesCountText.Text = $"Доступно экземпляров: {availableInstancesCount}";
+                    // Обновляем список выбранных авторов в UI
+                    SelectedAuthorsList.Items.Refresh();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке количества экземпляров: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Ошибка загрузки данных: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                Close();
             }
         }
 
-        private string SafeGetValue(OleDbDataReader reader, string column)
+        private void UpdateInstancesCount(SqlConnection connection)
         {
-            try
+            string query = "SELECT COUNT(*) FROM BookInstances WHERE BookID = @BookID AND Status = N'Доступна'";
+            using (SqlCommand cmd = new SqlCommand(query, connection))
             {
-                int colIndex = reader.GetOrdinal(column);
-                return reader.IsDBNull(colIndex) ? "" : reader[colIndex].ToString();
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        private object SafeGetObject(OleDbDataReader reader, string column)
-        {
-            try
-            {
-                int colIndex = reader.GetOrdinal(column);
-                return reader.IsDBNull(colIndex) ? null : reader[colIndex];
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        // Обработчик для правильного позиционирования курсора
-        private void TextBox_GotFocus(object sender, RoutedEventArgs e)
-        {
-            if (sender is TextBox textBox)
-            {
-                // Для редактируемых полей ставим курсор в конец текста
-                if (!textBox.IsReadOnly)
-                {
-                    textBox.CaretIndex = textBox.Text.Length;
-                }
+                cmd.Parameters.AddWithValue("@BookID", _bookId);
+                _availableInstancesCount = (int)cmd.ExecuteScalar();
+                InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
             }
         }
 
         private void AuthorsTextBox_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            OpenAuthorsMenu();
-            e.Handled = true;
-        }
-
-        private void OpenAuthorsMenu()
-        {
-            using (var connection = new OleDbConnection(connectionString))
+            var contextMenu = new ContextMenu();
+            foreach (var author in _authorsList)
             {
-                try
-                {
-                    connection.Open();
-
-                    if (authorsContextMenu.Items.Count == 0)
-                    {
-                        // Загружаем авторов в ContextMenu
-                        var authors = new List<string>();
-                        using (var cmd = new OleDbCommand("SELECT FullName FROM Authors ORDER BY FullName", connection))
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                if (!reader.IsDBNull(0))
-                                    authors.Add(reader.GetString(0));
-                            }
-                        }
-
-                        foreach (string author in authors)
-                        {
-                            var menuItem = new MenuItem
-                            {
-                                Header = author,
-                                Style = (Style)FindResource("DarkMenuItem")
-                            };
-                            menuItem.Click += (s, args) =>
-                            {
-                                AuthorsTextBox.Text = author;
-                                AuthorsTextBox.Foreground = new SolidColorBrush(Colors.White);
-                            };
-                            authorsContextMenu.Items.Add(menuItem);
-                        }
-                    }
-
-                    authorsContextMenu.PlacementTarget = AuthorsTextBox;
-                    authorsContextMenu.IsOpen = true;
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка при загрузке авторов: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                var menuItem = new MenuItem { Header = author };
+                menuItem.Click += (s, args) => AuthorsTextBox.Text = author;
+                contextMenu.Items.Add(menuItem);
             }
+            contextMenu.PlacementTarget = AuthorsTextBox;
+            contextMenu.IsOpen = true;
+            e.Handled = true;
         }
 
         private void UDKTextBox_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            OpenUDKMenu();
-            e.Handled = true;
-        }
-
-        private void OpenUDKMenu()
-        {
-            using (var connection = new OleDbConnection(connectionString))
+            var contextMenu = new ContextMenu();
+            foreach (DataRowView row in _udksTable.DefaultView)
             {
-                try
+                string code = row["Code"].ToString();
+                int id = Convert.ToInt32(row["ID"]);
+                var menuItem = new MenuItem
                 {
-                    connection.Open();
-
-                    if (udkContextMenu.Items.Count == 0)
-                    {
-                        // Загружаем УДК в ContextMenu
-                        var udks = new DataTable();
-                        using (var adapter = new OleDbDataAdapter("SELECT ID, Code FROM UDK ORDER BY Code", connection))
-                        {
-                            adapter.Fill(udks);
-                        }
-
-                        foreach (DataRowView row in udks.DefaultView)
-                        {
-                            string code = row["Code"].ToString();
-                            int id = Convert.ToInt32(row["ID"]);
-
-                            var menuItem = new MenuItem
-                            {
-                                Header = code,
-                                Style = (Style)FindResource("DarkMenuItem"),
-                                Tag = id // Сохраняем ID в Tag
-                            };
-                            menuItem.Click += (s, args) =>
-                            {
-                                UDKTextBox.Text = code;
-                                UDKTextBox.Foreground = new SolidColorBrush(Colors.White);
-                                selectedUDKId = id;
-                            };
-                            udkContextMenu.Items.Add(menuItem);
-                        }
-                    }
-
-                    udkContextMenu.PlacementTarget = UDKTextBox;
-                    udkContextMenu.IsOpen = true;
-                }
-                catch (Exception ex)
+                    Header = code,
+                    Tag = id
+                };
+                menuItem.Click += (s, args) =>
                 {
-                    MessageBox.Show("Ошибка при загрузке УДК: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                    UDKTextBox.Text = code;
+                    _selectedUDKId = id;
+                };
+                contextMenu.Items.Add(menuItem);
             }
+            contextMenu.PlacementTarget = UDKTextBox;
+            contextMenu.IsOpen = true;
+            e.Handled = true;
         }
 
         private void AddAuthor_Click(object sender, RoutedEventArgs e)
@@ -330,121 +166,108 @@ namespace biblioteka
             string author = AuthorsTextBox.Text.Trim();
             if (!string.IsNullOrEmpty(author) && author != "Выберите автора...")
             {
-                if (!SelectedAuthorsList.Items.Cast<string>().Contains(author))
+                if (!_selectedAuthors.Contains(author))
                 {
-                    SelectedAuthorsList.Items.Add(author);
-                    AuthorsTextBox.Text = "Выберите автора...";
-                    AuthorsTextBox.Foreground = new SolidColorBrush(Colors.Gray);
+                    _selectedAuthors.Add(author);
+                    SelectedAuthorsList.Items.Refresh();
                 }
-                else
-                {
-                    MessageBox.Show("Этот автор уже добавлен", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            else
-            {
-                MessageBox.Show("Выберите автора из списка", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
+                AuthorsTextBox.Text = "Выберите автора...";
             }
         }
 
         private void RemoveAuthor_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Content is string author)
+            if (sender is Button btn && btn.Tag is string author)
             {
-                SelectedAuthorsList.Items.Remove(author);
+                _selectedAuthors.Remove(author);
+                SelectedAuthorsList.Items.Refresh();
             }
         }
 
         private void AddInstance_Click(object sender, RoutedEventArgs e)
         {
-            using (var connection = new OleDbConnection(connectionString))
+            try
             {
-                try
+                using (var connection = DatabaseHelper.GetConnection())
                 {
                     connection.Open();
+                    string inventoryNumber = $"BK-{_bookId}-{DateTime.Now:yyyyMMdd-HHmmss}";
 
-                    // Генерируем инвентарный номер
-                    string inventoryNumber = $"BK-{bookId}-{DateTime.Now:yyyyMMdd-HHmmss}";
+                    string query = @"
+                        INSERT INTO BookInstances (BookID, InventoryNumber, Status, CanBeSold)
+                        VALUES (@BookID, @InventoryNumber, N'Доступна', 1)";
 
-                    using (var cmd = new OleDbCommand(
-                        "INSERT INTO BookInstances (BookID, InventoryNumber, Status, AcquisitionDate) VALUES (?, ?, 'На полке', ?)",
-                        connection))
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        // Явно указываем типы данных для параметров
-                        cmd.Parameters.Add("@BookID", OleDbType.Integer).Value = bookId;
-                        cmd.Parameters.Add("@InventoryNumber", OleDbType.VarWChar).Value = inventoryNumber;
-                        cmd.Parameters.Add("@AcquisitionDate", OleDbType.Date).Value = DateTime.Now;
-
+                        cmd.Parameters.AddWithValue("@BookID", _bookId);
+                        cmd.Parameters.AddWithValue("@InventoryNumber", inventoryNumber);
                         cmd.ExecuteNonQuery();
                     }
 
                     UpdateInstancesCount(connection);
-                    MessageBox.Show("Экземпляр успешно добавлен!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Экземпляр добавлен!", "Успех",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка при добавлении экземпляра: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void RemoveInstance_Click(object sender, RoutedEventArgs e)
         {
-            if (availableInstancesCount == 0)
+            if (_availableInstancesCount == 0)
             {
-                MessageBox.Show("Нет доступных экземпляров для удаления", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Нет доступных экземпляров", "Внимание",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var confirm = MessageBox.Show(
-                $"Удалить один экземпляр книги?\n\nТекущее количество: {availableInstancesCount}\nПосле удаления: {availableInstancesCount - 1}",
-                "Подтверждение удаления",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            var confirm = MessageBox.Show("Удалить один экземпляр?", "Подтверждение",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (confirm != MessageBoxResult.Yes) return;
 
-            using (var connection = new OleDbConnection(connectionString))
+            try
             {
-                try
+                using (var connection = DatabaseHelper.GetConnection())
                 {
                     connection.Open();
 
-                    // Находим первый доступный экземпляр для удаления
-                    string query = "SELECT TOP 1 ID FROM BookInstances WHERE BookID = ? AND Status = 'На полке' ORDER BY ID";
-                    int instanceId = -1;
+                    string query = @"
+                        DELETE TOP (1) FROM BookInstances 
+                        WHERE BookID = @BookID AND Status = N'Доступна'";
 
-                    using (var cmd = new OleDbCommand(query, connection))
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        cmd.Parameters.Add("@BookID", OleDbType.Integer).Value = bookId;
-                        object result = cmd.ExecuteScalar();
-                        if (result != null)
-                        {
-                            instanceId = Convert.ToInt32(result);
-                        }
+                        cmd.Parameters.AddWithValue("@BookID", _bookId);
+                        cmd.ExecuteNonQuery();
                     }
 
-                    if (instanceId != -1)
-                    {
-                        // Удаляем экземпляр
-                        using (var cmd = new OleDbCommand("DELETE FROM BookInstances WHERE ID = ?", connection))
-                        {
-                            cmd.Parameters.Add("@ID", OleDbType.Integer).Value = instanceId;
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        UpdateInstancesCount(connection);
-                        MessageBox.Show("Экземпляр успешно удален!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    else
-                    {
-                        MessageBox.Show("Не удалось найти экземпляр для удаления", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    UpdateInstancesCount(connection);
+                    MessageBox.Show("Экземпляр удален!", "Успех",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка при удалении экземпляра: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void PriceBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            {
+                e.Handled = true;
+            }
+
+            if (e.Text == "." && ((TextBox)sender).Text.Contains("."))
+            {
+                e.Handled = true;
             }
         }
 
@@ -452,127 +275,94 @@ namespace biblioteka
         {
             if (!ValidateInput()) return;
 
-            using (var connection = new OleDbConnection(connectionString))
+            try
             {
-                try
+                using (var connection = DatabaseHelper.GetConnection())
                 {
                     connection.Open();
 
-                    using (var transaction = connection.BeginTransaction())
+                    // Сохраняем авторов как строку через запятую
+                    string authorsString = string.Join(", ", _selectedAuthors);
+
+                    string updateQuery = @"
+                        UPDATE Books 
+                        SET Title = @Title, Yearr = @Yearr, UDK_ID = @UDK_ID, 
+                            Description = @Description, Price = @Price,
+                            Authors = @Authors
+                        WHERE ID = @ID";
+
+                    using (SqlCommand cmd = new SqlCommand(updateQuery, connection))
                     {
-                        try
-                        {
-                            // Обновляем книгу
-                            using (var cmd = new OleDbCommand(
-                                "UPDATE Books SET Title = ?, Yearr = ?, UDK_ID = ?, Description = ? WHERE Identifier = ?",
-                                connection, transaction))
-                            {
-                                cmd.Parameters.Add("@Title", OleDbType.VarWChar).Value = TitleBox.Text.Trim();
-                                cmd.Parameters.Add("@Yearr", OleDbType.VarWChar).Value = YearBox.Text.Trim();
-                                cmd.Parameters.Add("@UDK_ID", OleDbType.Integer).Value = selectedUDKId > 0 ? (object)selectedUDKId : DBNull.Value;
-                                cmd.Parameters.Add("@Description", OleDbType.VarWChar).Value = string.IsNullOrWhiteSpace(DescriptionBox.Text) ? DBNull.Value : (object)DescriptionBox.Text.Trim();
-                                cmd.Parameters.Add("@Identifier", OleDbType.Integer).Value = bookId;
+                        cmd.Parameters.AddWithValue("@Title", TitleBox.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Yearr", int.Parse(YearBox.Text));
+                        cmd.Parameters.AddWithValue("@UDK_ID", _selectedUDKId);
+                        cmd.Parameters.AddWithValue("@Description",
+                            string.IsNullOrEmpty(DescriptionBox.Text) ? DBNull.Value : (object)DescriptionBox.Text);
+                        cmd.Parameters.AddWithValue("@Price", decimal.Parse(PriceBox.Text));
+                        cmd.Parameters.AddWithValue("@Authors", authorsString);
+                        cmd.Parameters.AddWithValue("@ID", _bookId);
 
-                                if (cmd.ExecuteNonQuery() == 0)
-                                {
-                                    throw new Exception("Книга не найдена в базе данных");
-                                }
-                            }
-
-                            // Обновляем авторов
-                            UpdateBookAuthors(connection, transaction);
-
-                            transaction.Commit();
-
-                            MessageBox.Show("Изменения успешно сохранены!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                            BookUpdated?.Invoke(this, EventArgs.Empty);
-                            Close();
-                        }
-                        catch (Exception ex)
-                        {
-                            transaction.Rollback();
-                            throw new Exception("Ошибка сохранения изменений: " + ex.Message, ex);
-                        }
+                        cmd.ExecuteNonQuery();
                     }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка сохранения: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                    MessageBox.Show("Изменения сохранены!", "Успех",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    BookUpdated?.Invoke(this, EventArgs.Empty);
+                    Close();
                 }
             }
-        }
-
-        private void UpdateBookAuthors(OleDbConnection connection, OleDbTransaction transaction)
-        {
-            // Удаляем старых авторов
-            using (var cmd = new OleDbCommand("DELETE FROM BookAuthors WHERE BookID = ?", connection, transaction))
+            catch (Exception ex)
             {
-                cmd.Parameters.Add("@BookID", OleDbType.Integer).Value = bookId;
-                cmd.ExecuteNonQuery();
-            }
-
-            // Добавляем новых авторов
-            foreach (string author in SelectedAuthorsList.Items)
-            {
-                using (var cmd = new OleDbCommand(
-                    "INSERT INTO BookAuthors (BookID, AuthorID) SELECT ?, ID FROM Authors WHERE FullName = ?",
-                    connection, transaction))
-                {
-                    cmd.Parameters.Add("@BookID", OleDbType.Integer).Value = bookId;
-                    cmd.Parameters.Add("@FullName", OleDbType.VarWChar).Value = author;
-
-                    int affected = cmd.ExecuteNonQuery();
-                    if (affected == 0)
-                    {
-                        throw new Exception($"Автор '{author}' не найден в базе данных");
-                    }
-                }
+                MessageBox.Show("Ошибка сохранения: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private bool ValidateInput()
         {
-            // Проверка названия
             if (string.IsNullOrWhiteSpace(TitleBox.Text))
             {
-                MessageBox.Show("Введите название книги", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Введите название!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 TitleBox.Focus();
                 return false;
             }
 
-            // Проверка авторов
-            if (SelectedAuthorsList.Items.Count == 0)
+            if (_selectedAuthors.Count == 0)
             {
-                MessageBox.Show("Добавьте хотя бы одного автора", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                AuthorsTextBox.Focus();
+                MessageBox.Show("Добавьте автора!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            // Проверка УДК
-            if (selectedUDKId == -1 || UDKTextBox.Text == "Выберите УДК...")
+            if (_selectedUDKId == -1)
             {
-                MessageBox.Show("Выберите УДК", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                UDKTextBox.Focus();
+                MessageBox.Show("Выберите УДК!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            // Проверка года
-            if (string.IsNullOrWhiteSpace(YearBox.Text))
+            if (string.IsNullOrWhiteSpace(YearBox.Text) || !int.TryParse(YearBox.Text, out int year) ||
+                year < 1000 || year > DateTime.Now.Year + 5)
             {
-                MessageBox.Show("Введите год издания", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Введите корректный год!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 YearBox.Focus();
                 return false;
             }
 
-            if (!int.TryParse(YearBox.Text, out int year) || year < 1000 || year > DateTime.Now.Year + 5)
+            if (string.IsNullOrWhiteSpace(PriceBox.Text) || !decimal.TryParse(PriceBox.Text, out decimal price) || price < 0)
             {
-                MessageBox.Show($"Год должен быть числом от 1000 до {DateTime.Now.Year + 5}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                YearBox.Focus();
-                YearBox.SelectAll();
+                MessageBox.Show("Введите корректную цену!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                PriceBox.Focus();
                 return false;
             }
 
             return true;
+        }
+
+        private void TextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox textBox && !textBox.IsReadOnly)
+            {
+                textBox.CaretIndex = textBox.Text.Length;
+            }
         }
     }
 }

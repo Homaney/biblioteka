@@ -1,102 +1,73 @@
 ﻿using System;
-using System.Data;
-using System.Data.OleDb;
+using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
-using System.Collections.ObjectModel;
 
 namespace biblioteka
 {
     public partial class IssueBookWindow : Window
     {
-        private OleDbConnection connection;
-
-        // Простые классы для данных
         public class BookItem
         {
-            public int Identifier { get; set; }
+            public int ID { get; set; }
             public string Title { get; set; }
-
-            // Переопределяем ToString для правильного отображения
-            public override string ToString()
-            {
-                return Title;
-            }
+            public override string ToString() => Title;
         }
 
         public class ReaderItem
         {
             public int ID { get; set; }
             public string FullName { get; set; }
-
-            public override string ToString()
-            {
-                return FullName;
-            }
+            public override string ToString() => FullName;
         }
 
         public class InstanceItem
         {
             public int ID { get; set; }
             public string InventoryNumber { get; set; }
-
-            public override string ToString()
-            {
-                return InventoryNumber;
-            }
+            public override string ToString() => InventoryNumber;
         }
 
-        public IssueBookWindow(OleDbConnection conn)
+        public IssueBookWindow()
         {
             InitializeComponent();
-            connection = conn;
-
-            // Изначально устанавливаем SelectedItem в null для показа плейсхолдеров
-            BookComboBox.SelectedItem = null;
-            ReaderComboBox.SelectedItem = null;
-
             LoadBooks();
             LoadReaders();
-        }
-
-        protected override void OnContentRendered(EventArgs e)
-        {
-            base.OnContentRendered(e);
             IssueDatePicker.SelectedDate = DateTime.Today;
             PlannedReturnDatePicker.SelectedDate = DateTime.Today.AddDays(14);
+
+            // Запрещаем будущие даты для даты выдачи
+            IssueDatePicker.DisplayDateEnd = DateTime.Today;
         }
 
         private void LoadBooks()
         {
             try
             {
-                if (connection.State == ConnectionState.Closed)
-                    connection.Open();
-
-                string query = "SELECT Identifier, Title FROM Books ORDER BY Title";
-                using (OleDbCommand cmd = new OleDbCommand(query, connection))
-                using (OleDbDataReader reader = cmd.ExecuteReader())
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    var books = new ObservableCollection<BookItem>();
-                    while (reader.Read())
+                    connection.Open();
+                    string query = "SELECT ID, Title FROM Books ORDER BY Title";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        books.Add(new BookItem
+                        var books = new List<BookItem>();
+                        while (reader.Read())
                         {
-                            Identifier = reader.GetInt32(0),
-                            Title = reader.GetString(1)
-                        });
+                            books.Add(new BookItem
+                            {
+                                ID = reader.GetInt32(0),
+                                Title = reader.GetString(1)
+                            });
+                        }
+                        BookComboBox.ItemsSource = books;
                     }
-                    BookComboBox.ItemsSource = books;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке книг: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
+                MessageBox.Show("Ошибка загрузки книг: " + ex.Message);
             }
         }
 
@@ -104,33 +75,29 @@ namespace biblioteka
         {
             try
             {
-                if (connection.State == ConnectionState.Closed)
-                    connection.Open();
-
-                string query = "SELECT ID, FullName FROM Readers ORDER BY FullName";
-                using (OleDbCommand cmd = new OleDbCommand(query, connection))
-                using (OleDbDataReader reader = cmd.ExecuteReader())
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    var readers = new ObservableCollection<ReaderItem>();
-                    while (reader.Read())
+                    connection.Open();
+                    string query = "SELECT ID, FullName FROM Readers ORDER BY FullName";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    using (SqlDataReader reader = cmd.ExecuteReader())
                     {
-                        readers.Add(new ReaderItem
+                        var readers = new List<ReaderItem>();
+                        while (reader.Read())
                         {
-                            ID = reader.GetInt32(0),
-                            FullName = reader.GetString(1)
-                        });
+                            readers.Add(new ReaderItem
+                            {
+                                ID = reader.GetInt32(0),
+                                FullName = reader.GetString(1)
+                            });
+                        }
+                        ReaderComboBox.ItemsSource = readers;
                     }
-                    ReaderComboBox.ItemsSource = readers;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке читателей: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
+                MessageBox.Show("Ошибка загрузки читателей: " + ex.Message);
             }
         }
 
@@ -138,11 +105,7 @@ namespace biblioteka
         {
             if (BookComboBox.SelectedItem is BookItem selectedBook)
             {
-                LoadAvailableInstances(selectedBook.Identifier);
-            }
-            else
-            {
-                InstanceListBox.ItemsSource = null;
+                LoadAvailableInstances(selectedBook.ID);
             }
         }
 
@@ -150,51 +113,57 @@ namespace biblioteka
         {
             try
             {
-                if (connection.State == ConnectionState.Closed)
-                    connection.Open();
-
-                string query = "SELECT ID, InventoryNumber FROM BookInstances WHERE BookID = ? AND Status = 'На полке' ORDER BY InventoryNumber";
-                using (OleDbCommand cmd = new OleDbCommand(query, connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    cmd.Parameters.AddWithValue("?", bookId);
-                    using (OleDbDataReader reader = cmd.ExecuteReader())
+                    connection.Open();
+                    string query = @"
+                        SELECT ID, InventoryNumber 
+                        FROM BookInstances 
+                        WHERE BookID = @BookID AND Status = N'Доступна' 
+                        ORDER BY InventoryNumber";
+
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        var instances = new ObservableCollection<InstanceItem>();
-                        while (reader.Read())
+                        cmd.Parameters.AddWithValue("@BookID", bookId);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
                         {
-                            instances.Add(new InstanceItem
+                            var instances = new List<InstanceItem>();
+                            while (reader.Read())
                             {
-                                ID = reader.GetInt32(0),
-                                InventoryNumber = reader.GetString(1)
-                            });
+                                instances.Add(new InstanceItem
+                                {
+                                    ID = reader.GetInt32(0),
+                                    InventoryNumber = reader.GetString(1)
+                                });
+                            }
+                            InstanceListBox.ItemsSource = instances;
                         }
-                        InstanceListBox.ItemsSource = instances;
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при загрузке экземпляров: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
+                MessageBox.Show("Ошибка загрузки экземпляров: " + ex.Message);
             }
         }
 
         private void AddReader_Click(object sender, RoutedEventArgs e)
         {
-            string connectionString = connection.ConnectionString;
-            using (var newConnection = new OleDbConnection(connectionString))
+            var addReaderWindow = new AddReaderWindow();
+            if (addReaderWindow.ShowDialog() == true)
             {
-                var addReaderWindow = new AddReaderWindow(newConnection);
-                if (addReaderWindow.ShowDialog() == true)
-                {
-                    LoadReaders();
-                    ReaderComboBox.SelectedItem = null;
-                }
+                LoadReaders();
             }
+        }
+
+        // Проверка даты выдачи
+        private bool IsValidIssueDate(DateTime? date)
+        {
+            if (!date.HasValue)
+                return false;
+
+            DateTime selectedDate = date.Value.Date;
+            return selectedDate <= DateTime.Today; // Не позже сегодня
         }
 
         private void IssueButton_Click(object sender, RoutedEventArgs e)
@@ -213,68 +182,60 @@ namespace biblioteka
 
             if (InstanceListBox.SelectedItem == null)
             {
-                MessageBox.Show("Выберите экземпляр книги!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Выберите экземпляр!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var instanceItem = (InstanceItem)InstanceListBox.SelectedItem;
-            var readerItem = (ReaderItem)ReaderComboBox.SelectedItem;
+            // Проверка даты выдачи
+            if (!IsValidIssueDate(IssueDatePicker.SelectedDate))
+            {
+                MessageBox.Show("Дата выдачи не может быть в будущем!", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                IssueDatePicker.Focus();
+                return;
+            }
 
-            int instanceId = instanceItem.ID;
-            int readerId = readerItem.ID;
+            var instance = (InstanceItem)InstanceListBox.SelectedItem;
+            var reader = (ReaderItem)ReaderComboBox.SelectedItem;
             DateTime issueDate = IssueDatePicker.SelectedDate ?? DateTime.Today;
             DateTime plannedReturnDate = PlannedReturnDatePicker.SelectedDate ?? DateTime.Today.AddDays(14);
 
             if (plannedReturnDate < issueDate)
             {
-                MessageBox.Show("Дата возврата должна быть после даты выдачи!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Дата возврата должна быть позже даты выдачи!", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
-                if (connection.State == ConnectionState.Closed)
+                using (var connection = DatabaseHelper.GetConnection())
+                {
                     connection.Open();
 
-                using (OleDbCommand checkCmd = new OleDbCommand("SELECT Status FROM BookInstances WHERE ID = ?", connection))
-                {
-                    checkCmd.Parameters.AddWithValue("?", instanceId);
-                    string status = checkCmd.ExecuteScalar()?.ToString();
-                    if (status != "На полке")
+                    string query = @"
+                        INSERT INTO IssuedBooks (InstanceID, ReaderID, IssueDate, PlannedReturnDate, Status)
+                        VALUES (@InstanceID, @ReaderID, @IssueDate, @PlannedReturnDate, N'Выдана')";
+
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
                     {
-                        MessageBox.Show("Этот экземпляр недоступен!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
+                        cmd.Parameters.AddWithValue("@InstanceID", instance.ID);
+                        cmd.Parameters.AddWithValue("@ReaderID", reader.ID);
+                        cmd.Parameters.AddWithValue("@IssueDate", issueDate);
+                        cmd.Parameters.AddWithValue("@PlannedReturnDate", plannedReturnDate);
+                        cmd.ExecuteNonQuery();
                     }
-                }
 
-                string query = "INSERT INTO IssuedBooks (InstanceID, ReaderID, IssueDate, PlannedReturnDate, Status) VALUES (?, ?, ?, ?, 'Выдана')";
-                using (OleDbCommand cmd = new OleDbCommand(query, connection))
-                {
-                    cmd.Parameters.AddWithValue("?", instanceId);
-                    cmd.Parameters.AddWithValue("?", readerId);
-                    cmd.Parameters.AddWithValue("?", issueDate);
-                    cmd.Parameters.AddWithValue("?", plannedReturnDate);
-                    cmd.ExecuteNonQuery();
+                    MessageBox.Show("Книга успешно выдана!", "Успех",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    DialogResult = true;
+                    Close();
                 }
-
-                using (OleDbCommand updateInstance = new OleDbCommand("UPDATE BookInstances SET Status = 'Выдана' WHERE ID = ?", connection))
-                {
-                    updateInstance.Parameters.AddWithValue("?", instanceId);
-                    updateInstance.ExecuteNonQuery();
-                }
-
-                MessageBox.Show("Книга успешно выдана!");
-                this.DialogResult = true;
-                this.Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при выдаче книги: " + ex.Message);
-            }
-            finally
-            {
-                if (connection.State == ConnectionState.Open)
-                    connection.Close();
+                MessageBox.Show("Ошибка при выдаче: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

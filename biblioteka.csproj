@@ -64,6 +64,15 @@
     <PlatformTarget>x64</PlatformTarget>
     <OutputPath>bin\x64\Release\</OutputPath>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>
+    </ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup />
+  <PropertyGroup />
+  <PropertyGroup />
+  <PropertyGroup />
+  <PropertyGroup />
   <ItemGroup>
     <Reference Include="MaterialDesignColors, Version=5.3.0.0, Culture=neutral, PublicKeyToken=df2a72020bd7962a, processorArchitecture=MSIL">
       <HintPath>packages\MaterialDesignColors.5.3.0\lib\net462\MaterialDesignColors.dll</HintPath>
@@ -75,7 +84,14 @@
       <HintPath>packages\Microsoft.Xaml.Behaviors.Wpf.1.1.77\lib\net462\Microsoft.Xaml.Behaviors.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Configuration.ConfigurationManager, Version=10.0.0.3, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>packages\System.Configuration.ConfigurationManager.10.0.3\lib\net462\System.Configuration.ConfigurationManager.dll</HintPath>
+    </Reference>
     <Reference Include="System.Data" />
+    <Reference Include="System.Data.SqlClient, Version=4.6.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>packages\System.Data.SqlClient.4.9.0\lib\net462\System.Data.SqlClient.dll</HintPath>
+    </Reference>
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -97,14 +113,26 @@
     <Compile Include="AddUDKWindow.xaml.cs">
       <DependentUpon>AddUDKWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="DatabaseHelper.cs" />
+    <Compile Include="DateConverter.cs" />
     <Compile Include="EditBookWindow.xaml.cs">
       <DependentUpon>EditBookWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="EditUDKWindow.xaml.cs">
       <DependentUpon>EditUDKWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="GreaterThanConverter.cs" />
+    <Compile Include="OverdueLoansWindow.xaml.cs">
+      <DependentUpon>OverdueLoansWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ReadersInfoWindow.xaml.cs">
       <DependentUpon>ReadersInfoWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="SalesReportWindow.xaml.cs">
+      <DependentUpon>SalesReportWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="SellBookWindow.xaml.cs">
+      <DependentUpon>SellBookWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="UDKWindow.xaml.cs">
       <DependentUpon>UDKWindow.xaml</DependentUpon>
@@ -154,7 +182,19 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="OverdueLoansWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="ReadersInfoWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="SalesReportWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="SellBookWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

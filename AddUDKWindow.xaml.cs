@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Data.OleDb;
+using System.Data.SqlClient;
 using System.Windows;
 
 namespace biblioteka
 {
     public partial class AddUDKWindow : Window
     {
-        private OleDbConnection connection;
-
-        public AddUDKWindow(OleDbConnection conn)
+        public AddUDKWindow()
         {
             InitializeComponent();
-            connection = conn;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -32,40 +29,40 @@ namespace biblioteka
 
             try
             {
-                connection.Open();
-
-                // Проверяем, существует ли уже такой код УДК
-                using (var checkCmd = new OleDbCommand("SELECT COUNT(*) FROM UDK WHERE Code = ?", connection))
+                using (var connection = DatabaseHelper.GetConnection())
                 {
-                    checkCmd.Parameters.AddWithValue("@p1", CodeTextBox.Text.Trim());
-                    int existingCount = Convert.ToInt32(checkCmd.ExecuteScalar());
+                    connection.Open();
 
-                    if (existingCount > 0)
+                    // Проверка уникальности
+                    string checkQuery = "SELECT COUNT(*) FROM UDK WHERE Code = @Code";
+                    using (SqlCommand checkCmd = new SqlCommand(checkQuery, connection))
                     {
-                        MessageBox.Show("УДК с таким кодом уже существует!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                        checkCmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
+                        int exists = (int)checkCmd.ExecuteScalar();
+                        if (exists > 0)
+                        {
+                            MessageBox.Show("Такой код УДК уже существует!", "Ошибка",
+                                MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
                     }
+
+                    string query = "INSERT INTO UDK (Code, Description) VALUES (@Code, @Description)";
+                    using (SqlCommand cmd = new SqlCommand(query, connection))
+                    {
+                        cmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Description", DescriptionTextBox.Text.Trim());
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    DialogResult = true;
+                    Close();
                 }
-
-                using (var cmd = new OleDbCommand("INSERT INTO UDK (Code, Description) VALUES (?, ?)", connection))
-                {
-                    cmd.Parameters.AddWithValue("@p1", CodeTextBox.Text.Trim());
-                    cmd.Parameters.AddWithValue("@p2", DescriptionTextBox.Text.Trim());
-
-                    cmd.ExecuteNonQuery();
-                }
-
-                MessageBox.Show("УДК успешно добавлен!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                DialogResult = true;
-                Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при добавлении УДК: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                connection.Close();
+                MessageBox.Show("Ошибка при добавлении: " + ex.Message, "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
