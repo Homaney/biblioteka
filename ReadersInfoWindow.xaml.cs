@@ -1,546 +1,402 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using biblioteka.DTO;
+using biblioteka.Services;
 
 namespace biblioteka
 {
-    public partial class ReadersInfoWindow : Window
-    {
-        private int currentReaderId;
-        private bool isHistoryView = false; // Флаг для отслеживания текущей вкладки
+	public partial class ReadersInfoWindow : Window
+	{
+		private readonly ReaderService _readerService;
+		private readonly IssueService _issueService;
+		private int currentReaderId;
+		private bool isHistoryView = false;
 
-        public ReadersInfoWindow()
-        {
-            InitializeComponent();
-            LoadReaders();
-        }
+		public ReadersInfoWindow()
+		{
+			InitializeComponent();
+			_readerService = new ReaderService();
+			_issueService = new IssueService();
+			LoadReaders();
+		}
 
-        private void LoadReaders()
-        {
-            try
-            {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT ID, FullName, Phone, Address, RegistrationDate, BirthDate 
-                        FROM Readers ORDER BY FullName";
+		private void LoadReaders()
+		{
+			try
+			{
+				var readers = _readerService.GetAll();
+				ReadersList.ItemsSource = readers;
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show("Ошибка при загрузке читателей: " + ex.Message);
+			}
+		}
 
-                    using (SqlDataAdapter adapter = new SqlDataAdapter(query, connection))
-                    {
-                        DataTable table = new DataTable();
-                        adapter.Fill(table);
-                        ReadersList.ItemsSource = table.DefaultView;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка при загрузке читателей: " + ex.Message);
-            }
-        }
+		private void ReadersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+		{
+			if (ReadersList.SelectedItem is ReaderDto selected)
+			{
+				currentReaderId = selected.Id;
+				FullNameText.Text = selected.FullName;
+				PhoneText.Text = selected.Phone ?? "не указан";
+				AddressText.Text = selected.Address ?? "не указан";
+				BirthDateText.Text = selected.BirthDate.ToShortDateString();
+				RegistrationDateText.Text = selected.RegistrationDate.ToShortDateString();
 
-        private void ReadersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ReadersList.SelectedItem is DataRowView readerRow)
-            {
-                currentReaderId = Convert.ToInt32(readerRow["ID"]);
+				if (isHistoryView)
+					LoadHistoryBooks(currentReaderId);
+				else
+					LoadCurrentBooks(currentReaderId);
 
-                // Основная информация
-                FullNameText.Text = readerRow["FullName"].ToString();
-                PhoneText.Text = readerRow["Phone"]?.ToString() ?? "не указан";
-                AddressText.Text = readerRow["Address"]?.ToString() ?? "не указан";
-                BirthDateText.Text = GetDateString(readerRow["BirthDate"]);
-                RegistrationDateText.Text = GetDateString(readerRow["RegistrationDate"]);
+				ReaderCard.Visibility = Visibility.Visible;
+				DoubleAnimation fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
+				ReaderCard.BeginAnimation(OpacityProperty, fadeIn);
+				SelectHint.Visibility = Visibility.Collapsed;
+				PrintButton.Visibility = Visibility.Visible;
+			}
+			else
+			{
+				PrintButton.Visibility = Visibility.Collapsed;
+			}
+		}
 
-                // Сбрасываем списки перед загрузкой
-                CurrentBooksList.ItemsSource = null;
-                HistoryBooksList.ItemsSource = null;
+		private void LoadCurrentBooks(int readerId)
+		{
+			try
+			{
+				var issues = _issueService.GetReaderActiveIssues(readerId);
+				var books = new List<dynamic>();
 
-                // Загружаем книги в зависимости от текущей вкладки
-                if (isHistoryView)
-                {
-                    LoadHistoryBooks(currentReaderId);
-                }
-                else
-                {
-                    LoadCurrentBooks(currentReaderId);
-                }
+				foreach (var issue in issues)
+				{
+					bool overdue = issue.PlannedReturnDate < DateTime.Now;
+					bool warning = (issue.PlannedReturnDate - DateTime.Now).TotalDays <= 3 &&
+								  (issue.PlannedReturnDate - DateTime.Now).TotalDays > 0;
 
-                // Показываем карточку с анимацией
-                ReaderCard.Visibility = Visibility.Visible;
-                DoubleAnimation fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
-                ReaderCard.BeginAnimation(OpacityProperty, fadeIn);
-                SelectHint.Visibility = Visibility.Collapsed;
-                PrintButton.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                PrintButton.Visibility = Visibility.Collapsed;
-            }
-        }
+					string statusText = overdue ? "ПРОСРОЧЕНА" : (warning ? "СКОРО ВОЗВРАТ" : "В СРОК");
+					SolidColorBrush statusColor = overdue ? new SolidColorBrush(Colors.Red) :
+												  (warning ? new SolidColorBrush(Colors.Yellow) : new SolidColorBrush(Colors.Green));
 
-        private string GetDateString(object dateValue)
-        {
-            return dateValue != DBNull.Value ? Convert.ToDateTime(dateValue).ToShortDateString() : "не указана";
-        }
+					books.Add(new
+					{
+						IssuedId = issue.Id,
+						BookTitle = issue.BookTitle,
+						InventoryNumber = "Инв. №: " + issue.InventoryNumber,
+						Status = $"Выдано: {issue.IssueDate:dd.MM.yyyy} • Возврат: {issue.PlannedReturnDate:dd.MM.yyyy} • {statusText}",
+						StatusColor = statusColor,
+						CardColor = overdue ? new SolidColorBrush(Color.FromArgb(30, 255, 118, 117)) :
+								   (warning ? new SolidColorBrush(Color.FromArgb(30, 253, 203, 110)) :
+											  new SolidColorBrush(Color.FromArgb(30, 0, 184, 148)))
+					});
+				}
 
-        private void LoadCurrentBooks(int readerId)
-        {
-            try
-            {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT ib.ID AS IssuedId, b.Title AS BookTitle, bi.InventoryNumber, 
-                               ib.IssueDate, ib.PlannedReturnDate, ib.ActualReturnDate, ib.Status
-                        FROM IssuedBooks ib
-                        JOIN BookInstances bi ON ib.InstanceID = bi.ID
-                        JOIN Books b ON bi.BookID = b.ID
-                        WHERE ib.ReaderID = @ReaderID AND ib.Status = N'Выдана'";
+				CurrentBooksList.ItemsSource = books;
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show("Ошибка при загрузке текущих книг: " + ex.Message);
+			}
+		}
 
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@ReaderID", readerId);
-                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
-                        {
-                            DataTable table = new DataTable();
-                            adapter.Fill(table);
+		private void LoadHistoryBooks(int readerId)
+		{
+			try
+			{
+				var issues = _issueService.GetReaderHistory(readerId);
+				var books = new List<dynamic>();
 
-                            var books = new List<dynamic>();
-                            foreach (DataRow row in table.Rows)
-                            {
-                                DateTime issue = Convert.ToDateTime(row["IssueDate"]);
-                                DateTime planned = Convert.ToDateTime(row["PlannedReturnDate"]);
-                                bool overdue = planned < DateTime.Now && row["ActualReturnDate"] == DBNull.Value;
-                                bool warning = (planned - DateTime.Now).TotalDays <= 3 &&
-                                              (planned - DateTime.Now).TotalDays > 0 &&
-                                              row["ActualReturnDate"] == DBNull.Value;
+				foreach (var issue in issues)
+				{
+					if (!issue.ActualReturnDate.HasValue) continue;
 
-                                string statusText = overdue ? "ПРОСРОЧЕНА" :
-                                                    warning ? "СКОРО ВОЗВРАТ" : "В СРОК";
-                                SolidColorBrush statusColor = overdue ? new SolidColorBrush(Colors.Red) :
-                                                            warning ? new SolidColorBrush(Colors.Yellow) :
-                                                            new SolidColorBrush(Colors.Green);
+					DateTime actual = issue.ActualReturnDate.Value;
+					TimeSpan difference = actual - issue.PlannedReturnDate;
+					int daysDifference = (int)difference.TotalDays;
+					bool returnedOnTime = daysDifference <= 0;
 
-                                books.Add(new
-                                {
-                                    IssuedId = row["IssuedId"],
-                                    BookTitle = row["BookTitle"].ToString(),
-                                    InventoryNumber = "Инв. №: " + row["InventoryNumber"].ToString(),
-                                    Status = $"Выдано: {issue:dd.MM.yyyy} • Возврат: {planned:dd.MM.yyyy} • {statusText}",
-                                    StatusColor = statusColor,
-                                    CardColor = overdue ? new SolidColorBrush(Color.FromArgb(30, 255, 118, 117)) :
-                                              warning ? new SolidColorBrush(Color.FromArgb(30, 253, 203, 110)) :
-                                              new SolidColorBrush(Color.FromArgb(30, 0, 184, 148))
-                                });
-                            }
-                            CurrentBooksList.ItemsSource = books;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка при загрузке текущих книг: " + ex.Message);
-            }
-        }
+					string statusText, returnInfo;
+					SolidColorBrush statusColor;
 
-        private void LoadHistoryBooks(int readerId)
-        {
-            try
-            {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT ib.ID AS IssuedId, b.Title AS BookTitle, bi.InventoryNumber, 
-                               ib.IssueDate, ib.PlannedReturnDate, ib.ActualReturnDate, ib.Status
-                        FROM IssuedBooks ib
-                        JOIN BookInstances bi ON ib.InstanceID = bi.ID
-                        JOIN Books b ON bi.BookID = b.ID
-                        WHERE ib.ReaderID = @ReaderID AND ib.Status = 'Возвращена'
-                        ORDER BY ib.ActualReturnDate DESC";
+					if (returnedOnTime)
+					{
+						statusText = daysDifference < 0 ? "ВОЗВРАЩЕНА ДОСРОЧНО" : "ВОЗВРАЩЕНА ВОВРЕМЯ";
+						returnInfo = daysDifference < 0 ?
+							$"Возвращена: {actual:dd.MM.yyyy} (досрочно на {-daysDifference} дн.)" :
+							$"Возвращена: {actual:dd.MM.yyyy} (в срок)";
+						statusColor = new SolidColorBrush(Colors.Green);
+					}
+					else
+					{
+						statusText = "ВОЗВРАЩЕНА С ОПОЗДАНИЕМ";
+						returnInfo = $"Возвращена: {actual:dd.MM.yyyy} (опоздание: {daysDifference} дн.)";
+						statusColor = new SolidColorBrush(Colors.Orange);
+					}
 
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@ReaderID", readerId);
-                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
-                        {
-                            DataTable table = new DataTable();
-                            adapter.Fill(table);
+					books.Add(new
+					{
+						IssuedId = issue.Id,
+						BookTitle = issue.BookTitle,
+						InventoryNumber = "Инв. №: " + issue.InventoryNumber,
+						Status = $"Выдано: {issue.IssueDate:dd.MM.yyyy} • План возврата: {issue.PlannedReturnDate:dd.MM.yyyy} • {statusText}",
+						StatusColor = statusColor,
+						ReturnInfo = returnInfo
+					});
+				}
 
-                            var books = new List<dynamic>();
-                            foreach (DataRow row in table.Rows)
-                            {
-                                DateTime issue = Convert.ToDateTime(row["IssueDate"]);
-                                DateTime planned = Convert.ToDateTime(row["PlannedReturnDate"]);
-                                DateTime actual = Convert.ToDateTime(row["ActualReturnDate"]);
+				HistoryBooksList.ItemsSource = books;
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show("Ошибка при загрузке истории книг: " + ex.Message);
+			}
+		}
 
-                                TimeSpan difference = actual - planned;
-                                int daysDifference = (int)difference.TotalDays;
-                                bool returnedOnTime = daysDifference <= 0;
+		private void ReturnBook_Click(object sender, RoutedEventArgs e)
+		{
+			if (sender is Button btn && btn.Tag is int issuedId)
+			{
+				var confirm = MessageBox.Show("Вы уверены, что хотите вернуть книгу?", "Подтверждение возврата",
+					MessageBoxButton.YesNo, MessageBoxImage.Question);
+				if (confirm != MessageBoxResult.Yes) return;
 
-                                string statusText, returnInfo;
-                                SolidColorBrush statusColor;
+				try
+				{
+					_issueService.ReturnBook(issuedId);
 
-                                if (returnedOnTime)
-                                {
-                                    statusText = daysDifference < 0 ? "ВОЗВРАЩЕНА ДОСРОЧНО" : "ВОЗВРАЩЕНА ВОВРЕМЯ";
-                                    returnInfo = daysDifference < 0 ?
-                                        $"Возвращена: {actual:dd.MM.yyyy} (досрочно на {-daysDifference} дн.)" :
-                                        $"Возвращена: {actual:dd.MM.yyyy} (в срок)";
-                                    statusColor = new SolidColorBrush(Colors.Green);
-                                }
-                                else
-                                {
-                                    statusText = "ВОЗВРАЩЕНА С ОПОЗДАНИЕМ";
-                                    returnInfo = $"Возвращена: {actual:dd.MM.yyyy} (опоздание: {daysDifference} дн.)";
-                                    statusColor = new SolidColorBrush(Colors.Orange);
-                                }
+					MessageBox.Show("Книга успешно возвращена!", "Возврат книги", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                                books.Add(new
-                                {
-                                    IssuedId = row["IssuedId"],
-                                    BookTitle = row["BookTitle"].ToString(),
-                                    InventoryNumber = "Инв. №: " + row["InventoryNumber"].ToString(),
-                                    Status = $"Выдано: {issue:dd.MM.yyyy} • План возврата: {planned:dd.MM.yyyy} • {statusText}",
-                                    StatusColor = statusColor,
-                                    ReturnInfo = returnInfo
-                                });
-                            }
-                            HistoryBooksList.ItemsSource = books;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка при загрузке истории книг: " + ex.Message);
-            }
-        }
+					if (isHistoryView)
+						LoadHistoryBooks(currentReaderId);
+					else
+						LoadCurrentBooks(currentReaderId);
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show("Ошибка при возврате книги: " + ex.Message, "Ошибка",
+						MessageBoxButton.OK, MessageBoxImage.Error);
+				}
+			}
+		}
 
-        private void ReturnBook_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.Tag is int issuedId)
-            {
-                var confirm = MessageBox.Show("Вы уверены, что хотите вернуть книгу?", "Подтверждение возврата",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (confirm != MessageBoxResult.Yes) return;
+		private void SwitchToCurrentBooks(object sender, RoutedEventArgs e)
+		{
+			isHistoryView = false;
 
-                try
-                {
-                    using (var connection = DatabaseHelper.GetConnection())
-                    {
-                        connection.Open();
+			CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
+			CurrentBooksTab.Foreground = Brushes.White;
+			HistoryTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
+			HistoryTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
 
-                        int instanceId;
-                        DateTime plannedReturnDate;
-                        using (SqlCommand getInfoCmd = new SqlCommand(
-                            "SELECT InstanceID, PlannedReturnDate FROM IssuedBooks WHERE ID = @ID", connection))
-                        {
-                            getInfoCmd.Parameters.AddWithValue("@ID", issuedId);
-                            using (SqlDataReader reader = getInfoCmd.ExecuteReader())
-                            {
-                                if (reader.Read())
-                                {
-                                    instanceId = Convert.ToInt32(reader["InstanceID"]);
-                                    plannedReturnDate = Convert.ToDateTime(reader["PlannedReturnDate"]);
-                                }
-                                else
-                                {
-                                    MessageBox.Show("❌ Не удалось найти информацию о выдаче!", "Ошибка",
-                                        MessageBoxButton.OK, MessageBoxImage.Error);
-                                    return;
-                                }
-                            }
-                        }
+			HistoryBooksList.ItemsSource = null;
+			CurrentBooksList.Visibility = Visibility.Visible;
+			HistoryBooksList.Visibility = Visibility.Collapsed;
 
-                        DateTime actualReturnDate = DateTime.Now;
-                        TimeSpan difference = actualReturnDate - plannedReturnDate;
-                        int daysDifference = (int)difference.TotalDays;
-                        bool returnedOnTime = daysDifference <= 0;
+			if (currentReaderId > 0)
+				LoadCurrentBooks(currentReaderId);
+		}
 
-                        // Обновляем IssuedBooks
-                        using (SqlCommand updateIssued = new SqlCommand(
-                            "UPDATE IssuedBooks SET ActualReturnDate = @ActualReturnDate, Status = N'Возвращена', ReturnedOnTime = @ReturnedOnTime WHERE ID = @ID", connection))
-                        {
-                            updateIssued.Parameters.AddWithValue("@ActualReturnDate", actualReturnDate);
-                            updateIssued.Parameters.AddWithValue("@ReturnedOnTime", returnedOnTime);
-                            updateIssued.Parameters.AddWithValue("@ID", issuedId);
-                            updateIssued.ExecuteNonQuery();
-                        }
+		private void SwitchToHistory(object sender, RoutedEventArgs e)
+		{
+			isHistoryView = true;
 
-                        // Обновляем BookInstances
-                        using (SqlCommand updateInstance = new SqlCommand(
-                            "UPDATE BookInstances SET Status = N'Доступна' WHERE ID = @ID", connection))
-                        {
-                            updateInstance.Parameters.AddWithValue("@ID", instanceId);
-                            updateInstance.ExecuteNonQuery();
-                        }
+			HistoryTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
+			HistoryTab.Foreground = Brushes.White;
+			CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
+			CurrentBooksTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
 
-                        string message = returnedOnTime ?
-                            (daysDifference < 0 ? $"✅ Книга возвращена досрочно! (на {-daysDifference} дней раньше)" : "✅ Книга возвращена вовремя!") :
-                            $"⚠️ Книга возвращена с опозданием на {daysDifference} дней!";
+			CurrentBooksList.ItemsSource = null;
+			HistoryBooksList.Visibility = Visibility.Visible;
+			CurrentBooksList.Visibility = Visibility.Collapsed;
 
-                        MessageBox.Show(message, "Возврат книги", MessageBoxButton.OK, MessageBoxImage.Information);
+			if (currentReaderId > 0)
+				LoadHistoryBooks(currentReaderId);
+		}
 
-                        // Перезагружаем списки книг для текущего читателя
-                        if (isHistoryView)
-                        {
-                            LoadHistoryBooks(currentReaderId);
-                        }
-                        else
-                        {
-                            LoadCurrentBooks(currentReaderId);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("❌ Ошибка при возврате книги: " + ex.Message, "Ошибка",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
+		private void AddReader_Click(object sender, RoutedEventArgs e)
+		{
+			try
+			{
+				var addReaderWindow = new AddReaderWindow();
+				addReaderWindow.Owner = this;
+				if (addReaderWindow.ShowDialog() == true)
+				{
+					LoadReaders();
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show($"Ошибка при добавлении читателя: {ex.Message}", "Ошибка",
+					MessageBoxButton.OK, MessageBoxImage.Error);
+			}
+		}
 
-        private void SwitchToCurrentBooks(object sender, RoutedEventArgs e)
-        {
-            isHistoryView = false;
+		private void PrintButton_Click(object sender, RoutedEventArgs e)
+		{
+			if (ReadersList.SelectedItem == null)
+			{
+				MessageBox.Show("Выберите читателя для печати", "Печать",
+					MessageBoxButton.OK, MessageBoxImage.Information);
+				return;
+			}
 
-            CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
-            CurrentBooksTab.Foreground = Brushes.White;
-            HistoryTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
-            HistoryTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
+			try
+			{
+				PrintDialog printDialog = new PrintDialog();
+				if (printDialog.ShowDialog() == true)
+				{
+					var printVisual = CreatePrintVisual();
+					printDialog.PrintVisual(printVisual, $"Карточка читателя - {FullNameText.Text}");
 
-            // Очищаем историю перед переключением
-            HistoryBooksList.ItemsSource = null;
-            CurrentBooksList.Visibility = Visibility.Visible;
-            HistoryBooksList.Visibility = Visibility.Collapsed;
+					MessageBox.Show("Карточка отправлена на печать!", "Печать",
+						MessageBoxButton.OK, MessageBoxImage.Information);
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show($"Ошибка при печати: {ex.Message}", "Ошибка",
+					MessageBoxButton.OK, MessageBoxImage.Error);
+			}
+		}
 
-            // Загружаем текущие книги для текущего читателя
-            if (currentReaderId > 0)
-            {
-                LoadCurrentBooks(currentReaderId);
-            }
-        }
+		private FrameworkElement CreatePrintVisual()
+		{
+			var printContainer = new StackPanel
+			{
+				Background = Brushes.White,
+				Margin = new Thickness(50)
+			};
 
-        private void SwitchToHistory(object sender, RoutedEventArgs e)
-        {
-            isHistoryView = true;
+			printContainer.Children.Add(new TextBlock
+			{
+				Text = "КАРТОЧКА ЧИТАТЕЛЯ БИБЛИОТЕКИ",
+				FontSize = 18,
+				FontWeight = FontWeights.Bold,
+				TextAlignment = TextAlignment.Center,
+				Margin = new Thickness(0, 0, 0, 20),
+				Foreground = Brushes.Black
+			});
 
-            HistoryTab.Background = new SolidColorBrush(Color.FromRgb(108, 92, 231));
-            HistoryTab.Foreground = Brushes.White;
-            CurrentBooksTab.Background = new SolidColorBrush(Color.FromRgb(51, 51, 51));
-            CurrentBooksTab.Foreground = new SolidColorBrush(Color.FromRgb(176, 176, 176));
+			var infoGrid = new Grid();
+			infoGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+			infoGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+			infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+			infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+			infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+			infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+			infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+			infoGrid.Margin = new Thickness(0, 0, 0, 20);
 
-            // Очищаем текущие книги перед переключением
-            CurrentBooksList.ItemsSource = null;
-            HistoryBooksList.Visibility = Visibility.Visible;
-            CurrentBooksList.Visibility = Visibility.Collapsed;
+			AddPrintRow(infoGrid, 0, "ФИО:", FullNameText.Text);
+			AddPrintRow(infoGrid, 1, "Телефон:", PhoneText.Text);
+			AddPrintRow(infoGrid, 2, "Дата рождения:", BirthDateText.Text);
+			AddPrintRow(infoGrid, 3, "Дата регистрации:", RegistrationDateText.Text);
+			AddPrintRow(infoGrid, 4, "Адрес:", AddressText.Text);
 
-            // Загружаем историю для текущего читателя
-            if (currentReaderId > 0)
-            {
-                LoadHistoryBooks(currentReaderId);
-            }
-        }
+			printContainer.Children.Add(infoGrid);
 
-        private void PrintButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ReadersList.SelectedItem == null)
-            {
-                MessageBox.Show("Выберите читателя для печати", "Печать",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+			if (CurrentBooksList.Items.Count > 0)
+			{
+				printContainer.Children.Add(new TextBlock
+				{
+					Text = "ТЕКУЩИЕ КНИГИ НА РУКАХ:",
+					FontSize = 14,
+					FontWeight = FontWeights.Bold,
+					Margin = new Thickness(0, 0, 0, 10),
+					Foreground = Brushes.Black
+				});
 
-            try
-            {
-                PrintDialog printDialog = new PrintDialog();
-                if (printDialog.ShowDialog() == true)
-                {
-                    var printVisual = CreatePrintVisual();
-                    printDialog.PrintVisual(printVisual, $"Карточка читателя - {FullNameText.Text}");
+				foreach (dynamic book in CurrentBooksList.Items)
+				{
+					var bookPanel = new StackPanel
+					{
+						Margin = new Thickness(0, 0, 0, 8),
+						Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0))
+					};
 
-                    MessageBox.Show("Карточка отправлена на печать!", "Печать",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при печати: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+					bookPanel.Children.Add(new TextBlock
+					{
+						Text = book.BookTitle,
+						FontWeight = FontWeights.SemiBold,
+						FontSize = 12,
+						Foreground = Brushes.Black,
+						TextWrapping = TextWrapping.Wrap
+					});
 
-        private FrameworkElement CreatePrintVisual()
-        {
-            var printContainer = new StackPanel
-            {
-                Background = Brushes.White,
-                Margin = new Thickness(50)
-            };
+					bookPanel.Children.Add(new TextBlock
+					{
+						Text = book.InventoryNumber + " • " + book.Status,
+						FontSize = 11,
+						Foreground = Brushes.DarkGray,
+						Margin = new Thickness(0, 2, 0, 0)
+					});
 
-            // Заголовок
-            printContainer.Children.Add(new TextBlock
-            {
-                Text = "КАРТОЧКА ЧИТАТЕЛЯ БИБЛИОТЕКИ",
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 20),
-                Foreground = Brushes.Black
-            });
+					printContainer.Children.Add(bookPanel);
+				}
+			}
 
-            // Основная информация в таблице
-            var infoGrid = new Grid();
-            infoGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
-            infoGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
-            infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            infoGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            infoGrid.Margin = new Thickness(0, 0, 0, 20);
+			var signaturePanel = new StackPanel { Margin = new Thickness(0, 30, 0, 0) };
 
-            AddPrintRow(infoGrid, 0, "ФИО:", FullNameText.Text);
-            AddPrintRow(infoGrid, 1, "Телефон:", PhoneText.Text);
-            AddPrintRow(infoGrid, 2, "Дата рождения:", BirthDateText.Text);
-            AddPrintRow(infoGrid, 3, "Дата регистрации:", RegistrationDateText.Text);
-            AddPrintRow(infoGrid, 4, "Адрес:", AddressText.Text);
+			signaturePanel.Children.Add(new TextBlock
+			{
+				Text = $"Дата печати: {DateTime.Now:dd.MM.yyyy HH:mm}",
+				FontSize = 10,
+				Foreground = Brushes.Gray,
+				FontStyle = FontStyles.Italic
+			});
 
-            printContainer.Children.Add(infoGrid);
+			signaturePanel.Children.Add(new TextBlock
+			{
+				Text = "_________________________________",
+				FontSize = 10,
+				Foreground = Brushes.Black,
+				Margin = new Thickness(0, 20, 0, 0)
+			});
 
-            // Текущие книги
-            if (CurrentBooksList.Items.Count > 0)
-            {
-                printContainer.Children.Add(new TextBlock
-                {
-                    Text = "ТЕКУЩИЕ КНИГИ НА РУКАХ:",
-                    FontSize = 14,
-                    FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 0, 0, 10),
-                    Foreground = Brushes.Black
-                });
+			signaturePanel.Children.Add(new TextBlock
+			{
+				Text = "Подпись библиотекаря",
+				FontSize = 10,
+				Foreground = Brushes.Black,
+				FontStyle = FontStyles.Italic
+			});
 
-                foreach (dynamic book in CurrentBooksList.Items)
-                {
-                    var bookPanel = new StackPanel
-                    {
-                        Margin = new Thickness(0, 0, 0, 8),
-                        Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0))
-                    };
+			printContainer.Children.Add(signaturePanel);
 
-                    bookPanel.Children.Add(new TextBlock
-                    {
-                        Text = book.BookTitle,
-                        FontWeight = FontWeights.SemiBold,
-                        FontSize = 12,
-                        Foreground = Brushes.Black,
-                        TextWrapping = TextWrapping.Wrap
-                    });
+			return new ScrollViewer { Content = printContainer, Padding = new Thickness(10) };
+		}
 
-                    bookPanel.Children.Add(new TextBlock
-                    {
-                        Text = book.InventoryNumber + " • " + book.Status,
-                        FontSize = 11,
-                        Foreground = Brushes.DarkGray,
-                        Margin = new Thickness(0, 2, 0, 0)
-                    });
+		private void AddPrintRow(Grid grid, int row, string label, string value)
+		{
+			var labelText = new TextBlock
+			{
+				Text = label,
+				FontWeight = FontWeights.Bold,
+				FontSize = 12,
+				Foreground = Brushes.Black,
+				Margin = new Thickness(0, 0, 10, 5)
+			};
 
-                    printContainer.Children.Add(bookPanel);
-                }
-            }
+			var valueText = new TextBlock
+			{
+				Text = value,
+				FontSize = 12,
+				Foreground = Brushes.Black,
+				Margin = new Thickness(0, 0, 0, 5),
+				TextWrapping = TextWrapping.Wrap
+			};
 
-            // Подпись и дата
-            var signaturePanel = new StackPanel { Margin = new Thickness(0, 30, 0, 0) };
+			Grid.SetRow(labelText, row);
+			Grid.SetColumn(labelText, 0);
+			Grid.SetRow(valueText, row);
+			Grid.SetColumn(valueText, 1);
 
-            signaturePanel.Children.Add(new TextBlock
-            {
-                Text = $"Дата печати: {DateTime.Now:dd.MM.yyyy HH:mm}",
-                FontSize = 10,
-                Foreground = Brushes.Gray,
-                FontStyle = FontStyles.Italic
-            });
-
-            signaturePanel.Children.Add(new TextBlock
-            {
-                Text = "_________________________________",
-                FontSize = 10,
-                Foreground = Brushes.Black,
-                Margin = new Thickness(0, 20, 0, 0)
-            });
-
-            signaturePanel.Children.Add(new TextBlock
-            {
-                Text = "Подпись библиотекаря",
-                FontSize = 10,
-                Foreground = Brushes.Black,
-                FontStyle = FontStyles.Italic
-            });
-
-            printContainer.Children.Add(signaturePanel);
-
-            return new ScrollViewer { Content = printContainer, Padding = new Thickness(10) };
-        }
-
-        private void AddPrintRow(Grid grid, int row, string label, string value)
-        {
-            var labelText = new TextBlock
-            {
-                Text = label,
-                FontWeight = FontWeights.Bold,
-                FontSize = 12,
-                Foreground = Brushes.Black,
-                Margin = new Thickness(0, 0, 10, 5)
-            };
-
-            var valueText = new TextBlock
-            {
-                Text = value,
-                FontSize = 12,
-                Foreground = Brushes.Black,
-                Margin = new Thickness(0, 0, 0, 5),
-                TextWrapping = TextWrapping.Wrap
-            };
-
-            Grid.SetRow(labelText, row);
-            Grid.SetColumn(labelText, 0);
-            Grid.SetRow(valueText, row);
-            Grid.SetColumn(valueText, 1);
-
-            grid.Children.Add(labelText);
-            grid.Children.Add(valueText);
-        }
-
-        private void AddReader_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var addReaderWindow = new AddReaderWindow();
-                addReaderWindow.Owner = this;
-                if (addReaderWindow.ShowDialog() == true)
-                {
-                    LoadReaders();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при добавлении читателя: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
-        }
-    }
+			grid.Children.Add(labelText);
+			grid.Children.Add(valueText);
+		}
+	}
 }

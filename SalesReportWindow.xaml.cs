@@ -1,19 +1,20 @@
 ﻿using System;
-using System.Data;
-using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using biblioteka.Services;
 
 namespace biblioteka
 {
     public partial class SalesReportWindow : Window
     {
-        private DataTable _reportData;
+        private readonly SaleService _saleService;
+        private SaleReportDto _report;
 
         public SalesReportWindow()
         {
             InitializeComponent();
+            _saleService = new SaleService();
             StartDatePicker.SelectedDate = DateTime.Today.AddMonths(-1);
             EndDatePicker.SelectedDate = DateTime.Today;
             LoadReport();
@@ -23,46 +24,12 @@ namespace biblioteka
         {
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
+                var startDate = StartDatePicker.SelectedDate ?? DateTime.Today.AddMonths(-1);
+                var endDate = EndDatePicker.SelectedDate ?? DateTime.Today;
 
-                    string query = @"
-                        SELECT 
-                            CAST(s.SaleDate AS DATE) AS SaleDate,
-                            b.Title AS BookTitle,
-                            r.FullName AS Buyer,
-                            s.Quantity,
-                            s.UnitPrice,
-                            s.TotalAmount,
-                            ISNULL(s.Notes, '—') AS Notes
-                        FROM Sales s
-                        JOIN Books b ON s.BookID = b.ID
-                        JOIN Readers r ON s.ReaderID = r.ID
-                        WHERE (@StartDate IS NULL OR s.SaleDate >= @StartDate)
-                          AND (@EndDate IS NULL OR s.SaleDate <= @EndDate)
-                        ORDER BY s.SaleDate DESC";
-
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@StartDate",
-                            StartDatePicker.SelectedDate.HasValue ? (object)StartDatePicker.SelectedDate.Value : DBNull.Value);
-                        cmd.Parameters.AddWithValue("@EndDate",
-                            EndDatePicker.SelectedDate.HasValue ? (object)EndDatePicker.SelectedDate.Value.AddDays(1) : DBNull.Value);
-
-                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
-                        {
-                            _reportData = new DataTable();
-                            adapter.Fill(_reportData);
-
-                            if (_reportData.Columns.Contains("BookTitle"))
-                                _reportData.Columns["BookTitle"].ColumnName = "Title";
-
-                            SalesDataGrid.ItemsSource = _reportData.DefaultView;
-                            UpdateTotals();
-                        }
-                    }
-                }
+                _report = _saleService.GetReport(startDate, endDate);
+                SalesDataGrid.ItemsSource = _report.Sales;
+                UpdateTotals();
             }
             catch (Exception ex)
             {
@@ -73,16 +40,11 @@ namespace biblioteka
 
         private void UpdateTotals()
         {
-            if (_reportData != null && _reportData.Rows.Count > 0)
+            if (_report != null && _report.Sales != null && _report.Sales.Count > 0)
             {
-                decimal total = 0;
-                int totalBooks = 0;
-                foreach (DataRow row in _reportData.Rows)
-                {
-                    total += Convert.ToDecimal(row["TotalAmount"]);
-                    totalBooks += Convert.ToInt32(row["Quantity"]);
-                }
-                TotalText.Text = $"Всего продаж: {_reportData.Rows.Count} | Продано книг: {totalBooks} | Общая сумма: {total:F2} BYN";
+                TotalText.Text = $"Всего продаж: {_report.Sales.Count} | " +
+                                $"Продано книг: {_report.TotalQuantity} | " +
+                                $"Общая сумма: {_report.TotalAmount:F2} BYN";
             }
             else
             {
@@ -99,7 +61,7 @@ namespace biblioteka
         {
             try
             {
-                if (_reportData == null || _reportData.Rows.Count == 0)
+                if (_report == null || _report.Sales == null || _report.Sales.Count == 0)
                 {
                     MessageBox.Show("Нет данных для печати", "Печать",
                         MessageBoxButton.OK, MessageBoxImage.Information);
@@ -110,7 +72,8 @@ namespace biblioteka
                 if (printDialog.ShowDialog() == true)
                 {
                     var printVisual = CreatePrintVisual();
-                    printDialog.PrintVisual(printVisual, $"Отчет по продажам с {StartDatePicker.SelectedDate.Value:dd.MM.yyyy} по {EndDatePicker.SelectedDate.Value:dd.MM.yyyy}");
+                    printDialog.PrintVisual(printVisual,
+                        $"Отчет по продажам с {_report.StartDate:dd.MM.yyyy} по {_report.EndDate:dd.MM.yyyy}");
 
                     MessageBox.Show("Отчет отправлен на печать!", "Печать",
                         MessageBoxButton.OK, MessageBoxImage.Information);
@@ -145,7 +108,7 @@ namespace biblioteka
             // Период
             printContainer.Children.Add(new TextBlock
             {
-                Text = $"Период: {StartDatePicker.SelectedDate.Value:dd.MM.yyyy} - {EndDatePicker.SelectedDate.Value:dd.MM.yyyy}",
+                Text = $"Период: {_report.StartDate:dd.MM.yyyy} - {_report.EndDate:dd.MM.yyyy}",
                 FontSize = 14,
                 TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 20),
@@ -156,27 +119,23 @@ namespace biblioteka
             var grid = new Grid();
             grid.Margin = new Thickness(0, 0, 0, 20);
 
-            // Определяем колонки с фиксированной шириной
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });   // Дата
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });  // Книга
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });  // Покупатель
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });   // Кол-во
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });   // Цена
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });   // Сумма
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });  // Примечание
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
 
-            // Определяем строки: заголовок + каждая запись
-            int totalRows = 1 + _reportData.Rows.Count;
+            int totalRows = 1 + _report.Sales.Count;
             for (int i = 0; i < totalRows; i++)
-            {
                 grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            }
 
-            // Заголовки колонок (без фона, просто жирный текст)
             string[] headers = { "Дата", "Книга", "Покупатель", "Кол-во", "Цена", "Сумма", "Примечание" };
             TextAlignment[] alignments = { TextAlignment.Center, TextAlignment.Left, TextAlignment.Left,
                                           TextAlignment.Center, TextAlignment.Right, TextAlignment.Right, TextAlignment.Left };
 
+            // Заголовки
             for (int i = 0; i < headers.Length; i++)
             {
                 var border = new Border
@@ -184,7 +143,7 @@ namespace biblioteka
                     BorderBrush = Brushes.Black,
                     BorderThickness = new Thickness(0.5),
                     Padding = new Thickness(5, 3, 5, 3),
-                    Background = Brushes.White // белый фон
+                    Background = Brushes.White
                 };
 
                 var header = new TextBlock
@@ -202,26 +161,25 @@ namespace biblioteka
                 grid.Children.Add(border);
             }
 
-            // Заполняем данными с чередованием фона
+            // Данные
             int rowIndex = 1;
-            foreach (DataRowView item in _reportData.DefaultView)
+            foreach (var sale in _report.Sales)
             {
-                // чередование фона: чётные строки светло-серые, нечётные белые
                 Color bgColor = (rowIndex % 2 == 0) ? Color.FromRgb(240, 240, 240) : Colors.White;
 
-                AddPrintCell(grid, rowIndex, 0, Convert.ToDateTime(item["SaleDate"]).ToString("dd.MM.yyyy"), TextAlignment.Center, bgColor);
-                AddPrintCell(grid, rowIndex, 1, item["Title"]?.ToString() ?? "", TextAlignment.Left, bgColor);
-                AddPrintCell(grid, rowIndex, 2, item["Buyer"]?.ToString() ?? "", TextAlignment.Left, bgColor);
-                AddPrintCell(grid, rowIndex, 3, item["Quantity"]?.ToString() ?? "", TextAlignment.Center, bgColor);
-                AddPrintCell(grid, rowIndex, 4, Convert.ToDecimal(item["UnitPrice"]).ToString("F2") + " BYN", TextAlignment.Right, bgColor);
-                AddPrintCell(grid, rowIndex, 5, Convert.ToDecimal(item["TotalAmount"]).ToString("F2") + " BYN", TextAlignment.Right, bgColor);
-                AddPrintCell(grid, rowIndex, 6, item["Notes"]?.ToString() ?? "", TextAlignment.Left, bgColor);
+                AddPrintCell(grid, rowIndex, 0, sale.SaleDate.ToString("dd.MM.yyyy"), TextAlignment.Center, bgColor);
+                AddPrintCell(grid, rowIndex, 1, sale.BookTitle ?? "", TextAlignment.Left, bgColor);
+                AddPrintCell(grid, rowIndex, 2, sale.Buyer ?? "", TextAlignment.Left, bgColor);
+                AddPrintCell(grid, rowIndex, 3, sale.Quantity.ToString(), TextAlignment.Center, bgColor);
+                AddPrintCell(grid, rowIndex, 4, sale.UnitPrice.ToString("F2") + " BYN", TextAlignment.Right, bgColor);
+                AddPrintCell(grid, rowIndex, 5, sale.TotalAmount.ToString("F2") + " BYN", TextAlignment.Right, bgColor);
+                AddPrintCell(grid, rowIndex, 6, sale.Notes ?? "", TextAlignment.Left, bgColor);
                 rowIndex++;
             }
 
             printContainer.Children.Add(grid);
 
-            // Итоги (тоже без фона, просто жирный текст)
+            // Итоги
             var totalsBorder = new Border
             {
                 BorderBrush = Brushes.Black,

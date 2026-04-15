@@ -1,126 +1,80 @@
 ﻿using System;
-using System.Data;
-using System.Data.SqlClient;
 using System.Windows;
-using System.Windows.Controls;
+using biblioteka.DTO;
+using biblioteka.Services;
 
 namespace biblioteka
 {
     public partial class UDKWindow : Window
     {
-        private DataTable udkTable;
+        private readonly UDKService _service;
 
         public UDKWindow()
         {
             InitializeComponent();
-            LoadUDK();
+            _service = new UDKService();
+            LoadData();
         }
 
-        private void LoadUDK()
+        private void LoadData()
         {
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = "SELECT ID, Code, Description FROM UDK ORDER BY Code";
-                    using (SqlDataAdapter adapter = new SqlDataAdapter(query, connection))
-                    {
-                        udkTable = new DataTable();
-                        adapter.Fill(udkTable);
-                        UDKDataGrid.ItemsSource = udkTable.DefaultView;
-                        StatusText.Text = $"Загружено записей: {udkTable.Rows.Count}";
-                    }
-                }
+                var list = _service.GetAll();
+                UDKDataGrid.ItemsSource = list;
+                StatusText.Text = $"Загружено записей: {list.Count}";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка загрузки данных: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Ошибка загрузки: " + ex.Message);
             }
         }
 
         private void AddUDK_Click(object sender, RoutedEventArgs e)
         {
-            var addWindow = new AddUDKWindow();
-            addWindow.Owner = this;
-            if (addWindow.ShowDialog() == true)
-            {
-                LoadUDK();
-            }
+            var window = new AddUDKWindow();
+            window.Owner = this;
+            if (window.ShowDialog() == true)
+                LoadData();
         }
 
         private void EditUDK_Click(object sender, RoutedEventArgs e)
         {
-            if (UDKDataGrid.SelectedItem is DataRowView row)
+            if (UDKDataGrid.SelectedItem is UDKDto selected)
             {
-                int id = Convert.ToInt32(row["ID"]);
-                var editWindow = new EditUDKWindow(id);
-                editWindow.Owner = this;
-                if (editWindow.ShowDialog() == true)
-                {
-                    LoadUDK();
-                }
+                var window = new EditUDKWindow(selected.Id);
+                window.Owner = this;
+                if (window.ShowDialog() == true)
+                    LoadData();
             }
             else
             {
-                MessageBox.Show("Выберите УДК для редактирования!", "Внимание",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Выберите УДК для редактирования");
             }
         }
 
         private void DeleteUDK_Click(object sender, RoutedEventArgs e)
         {
-            if (UDKDataGrid.SelectedItem is DataRowView row)
+            if (UDKDataGrid.SelectedItem is UDKDto selected)
             {
-                int id = Convert.ToInt32(row["ID"]);
-                string code = row["Code"]?.ToString() ?? "";
-
-                var confirm = MessageBox.Show(
-                    $"Удалить УДК?\n\nКод: {code}",
-                    "Подтверждение",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (confirm == MessageBoxResult.Yes)
+                var result = MessageBox.Show($"Удалить УДК '{selected.Code}'?", "Подтверждение",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes)
                 {
                     try
                     {
-                        using (var connection = DatabaseHelper.GetConnection())
-                        {
-                            connection.Open();
-
-                            // Проверяем использование
-                            string checkQuery = "SELECT COUNT(*) FROM Books WHERE UDK_ID = @ID";
-                            using (SqlCommand checkCmd = new SqlCommand(checkQuery, connection))
-                            {
-                                checkCmd.Parameters.AddWithValue("@ID", id);
-                                int usageCount = (int)checkCmd.ExecuteScalar();
-
-                                if (usageCount > 0)
-                                {
-                                    MessageBox.Show($"УДК используется в {usageCount} книгах!",
-                                        "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                                    return;
-                                }
-                            }
-
-                            string deleteQuery = "DELETE FROM UDK WHERE ID = @ID";
-                            using (SqlCommand cmd = new SqlCommand(deleteQuery, connection))
-                            {
-                                cmd.Parameters.AddWithValue("@ID", id);
-                                cmd.ExecuteNonQuery();
-                            }
-
-                            LoadUDK();
-                        }
+                        _service.Delete(selected.Id);
+                        LoadData();
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка",
-                            MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
+            }
+            else
+            {
+                MessageBox.Show("Выберите УДК для удаления");
             }
         }
     }

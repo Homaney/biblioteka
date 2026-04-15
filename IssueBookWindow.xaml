@@ -39,9 +39,9 @@
                         <Grid x:Name="templateRoot" SnapsToDevicePixels="true">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition MinWidth="{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}" Width="0"/>
+                                <ColumnDefinition Width="0"/>
                             </Grid.ColumnDefinitions>
-                            <Popup x:Name="PART_Popup" AllowsTransparency="true" Grid.ColumnSpan="2" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Margin="1" PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}" Placement="Bottom">
+                            <Popup x:Name="PART_Popup" AllowsTransparency="true" Grid.ColumnSpan="2" IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}" Margin="1" PopupAnimation="Slide" Placement="Bottom">
                                 <Border x:Name="dropDownBorder" Background="{StaticResource InputBackground}" BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="4" MaxHeight="300">
                                     <ScrollViewer x:Name="DropDownScrollViewer">
                                         <Grid x:Name="grid" RenderOptions.ClearTypeHint="Enabled">
@@ -217,11 +217,16 @@
                           FontWeight="SemiBold"
                           Margin="0,0,0,6"/>
                 <ComboBox x:Name="BookComboBox" 
-                         Style="{StaticResource ComboBoxWithPlaceholder}"
-                         Tag="Выберите книгу..."
-                         DisplayMemberPath="Title"
-                         SelectionChanged="BookComboBox_SelectionChanged"
-                         Margin="0,0,0,20"/>
+                          Style="{StaticResource ComboBoxWithPlaceholder}"
+                          Tag="Выберите книгу..."
+                          SelectionChanged="BookComboBox_SelectionChanged"
+                          Margin="0,0,0,20">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextPrimary}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
                 <!-- Доступные экземпляры -->
                 <TextBlock Text="📚 Доступные экземпляры:" 
@@ -230,10 +235,10 @@
                           FontWeight="SemiBold"
                           Margin="0,0,0,6"/>
                 <ListBox x:Name="InstanceListBox" 
-                        Height="100"
-                        DisplayMemberPath="InventoryNumber" 
-                        SelectedValuePath="ID"
-                        Margin="0,0,0,20"/>
+                         Height="100"
+                         DisplayMemberPath="InventoryNumber" 
+                         SelectedValuePath="Id"
+                         Margin="0,0,0,20"/>
 
                 <!-- Читатель -->
                 <TextBlock Text="👤 Читатель:" 
@@ -247,10 +252,15 @@
                         <ColumnDefinition Width="44"/>
                     </Grid.ColumnDefinitions>
                     <ComboBox x:Name="ReaderComboBox" 
-                             Grid.Column="0"
-                             Style="{StaticResource ComboBoxWithPlaceholder}"
-                             Tag="Выберите читателя..."
-                             DisplayMemberPath="FullName"/>
+                              Grid.Column="0"
+                              Style="{StaticResource ComboBoxWithPlaceholder}"
+                              Tag="Выберите читателя...">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding FullName}" Foreground="{StaticResource TextPrimary}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <Button Content="➕" 
                             Grid.Column="1"
                             Style="{StaticResource AddButton}"

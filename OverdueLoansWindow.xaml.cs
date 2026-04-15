@@ -1,19 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
 using System.Windows;
 using System.Windows.Controls;
+using biblioteka.Services;
 
 namespace biblioteka
 {
     public partial class OverdueLoansWindow : Window
     {
-        private DataTable _overdueTable;
+        private readonly IssueService _issueService;
 
         public OverdueLoansWindow()
         {
             InitializeComponent();
+            _issueService = new IssueService();
             LoadOverdueLoans();
         }
 
@@ -21,34 +20,9 @@ namespace biblioteka
         {
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT 
-                            ib.ID AS IssuedId,
-                            r.FullName AS ReaderName,
-                            b.Title AS BookTitle,
-                            bi.InventoryNumber,
-                            ib.IssueDate,
-                            ib.PlannedReturnDate,
-                            DATEDIFF(day, ib.PlannedReturnDate, GETDATE()) AS DaysOverdue
-                        FROM IssuedBooks ib
-                        JOIN BookInstances bi ON ib.InstanceID = bi.ID
-                        JOIN Books b ON bi.BookID = b.ID
-                        JOIN Readers r ON ib.ReaderID = r.ID
-                        WHERE ib.Status = N'Выдана' 
-                          AND ib.PlannedReturnDate < GETDATE()
-                        ORDER BY DaysOverdue DESC";
-
-                    using (SqlDataAdapter adapter = new SqlDataAdapter(query, connection))
-                    {
-                        _overdueTable = new DataTable();
-                        adapter.Fill(_overdueTable);
-                        OverdueDataGrid.ItemsSource = _overdueTable.DefaultView;
-                    }
-                }
-                UpdateStats();
+                var overdue = _issueService.GetOverdueIssues();
+                OverdueDataGrid.ItemsSource = overdue;
+                UpdateStats(overdue.Count);
             }
             catch (Exception ex)
             {
@@ -57,21 +31,17 @@ namespace biblioteka
             }
         }
 
-        private void UpdateStats()
+        private void UpdateStats(int count)
         {
-            if (_overdueTable != null)
+            if (count == 0)
             {
-                int count = _overdueTable.Rows.Count;
-                if (count == 0)
-                {
-                    StatsText.Text = "✅ Просроченных выдач нет. Отлично!";
-                    StatsText.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Success");
-                }
-                else
-                {
-                    StatsText.Text = $"⚠️ Найдено просроченных выдач: {count}";
-                    StatsText.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Danger");
-                }
+                StatsText.Text = "✅ Просроченных выдач нет. Отлично!";
+                StatsText.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Success");
+            }
+            else
+            {
+                StatsText.Text = $"⚠️ Найдено просроченных выдач: {count}";
+                StatsText.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Danger");
             }
         }
 
@@ -86,65 +56,18 @@ namespace biblioteka
             {
                 var confirm = MessageBox.Show("Вернуть эту книгу?", "Подтверждение",
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
+
                 if (confirm != MessageBoxResult.Yes) return;
 
                 try
                 {
-                    using (var connection = DatabaseHelper.GetConnection())
-                    {
-                        connection.Open();
-
-                        // Получаем InstanceID и PlannedReturnDate
-                        int instanceId;
-                        DateTime plannedReturnDate;
-                        using (SqlCommand getInfoCmd = new SqlCommand(
-                            "SELECT InstanceID, PlannedReturnDate FROM IssuedBooks WHERE ID = @ID", connection))
-                        {
-                            getInfoCmd.Parameters.AddWithValue("@ID", issuedId);
-                            using (SqlDataReader reader = getInfoCmd.ExecuteReader())
-                            {
-                                if (reader.Read())
-                                {
-                                    instanceId = Convert.ToInt32(reader["InstanceID"]);
-                                    plannedReturnDate = Convert.ToDateTime(reader["PlannedReturnDate"]);
-                                }
-                                else
-                                {
-                                    MessageBox.Show("❌ Не удалось найти информацию о выдаче!", "Ошибка",
-                                        MessageBoxButton.OK, MessageBoxImage.Error);
-                                    return;
-                                }
-                            }
-                        }
-
-                        DateTime actualReturnDate = DateTime.Now;
-                        bool returnedOnTime = actualReturnDate <= plannedReturnDate;
-
-                        // Обновляем IssuedBooks
-                        using (SqlCommand updateIssued = new SqlCommand(
-                            "UPDATE IssuedBooks SET ActualReturnDate = @ActualReturnDate, Status = N'Возвращена', ReturnedOnTime = @ReturnedOnTime WHERE ID = @ID", connection))
-                        {
-                            updateIssued.Parameters.AddWithValue("@ActualReturnDate", actualReturnDate);
-                            updateIssued.Parameters.AddWithValue("@ReturnedOnTime", returnedOnTime);
-                            updateIssued.Parameters.AddWithValue("@ID", issuedId);
-                            updateIssued.ExecuteNonQuery();
-                        }
-
-                        // Обновляем BookInstances
-                        using (SqlCommand updateInstance = new SqlCommand(
-                            "UPDATE BookInstances SET Status = N'Доступна' WHERE ID = @ID", connection))
-                        {
-                            updateInstance.Parameters.AddWithValue("@ID", instanceId);
-                            updateInstance.ExecuteNonQuery();
-                        }
-                    }
-
+                    _issueService.ReturnBook(issuedId);
                     MessageBox.Show("Книга возвращена!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                    LoadOverdueLoans(); // Обновляем список
+                    LoadOverdueLoans();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("❌ Ошибка при возврате книги: " + ex.Message, "Ошибка",
+                    MessageBox.Show("Ошибка при возврате книги: " + ex.Message, "Ошибка",
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }

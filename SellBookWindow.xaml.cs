@@ -1,104 +1,91 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Text.RegularExpressions;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using biblioteka.DTO;
+using biblioteka.Services;
 
 namespace biblioteka
 {
     public partial class SellBookWindow : Window
     {
-        public class BookItem
-        {
-            public int ID { get; set; }
-            public string Title { get; set; }
-            public decimal Price { get; set; }
-            public int Available { get; set; }
-
-            // ТОЛЬКО НАЗВАНИЕ КНИГИ, без скобок
-            public override string ToString() => Title;
-        }
-
-        public class ReaderItem
-        {
-            public int ID { get; set; }
-            public string FullName { get; set; }
-            public override string ToString() => FullName;
-        }
+        private BookService _bookService;
+        private ReaderService _readerService;
+        private SaleService _saleService;
+        private List<BookDto> _books;
 
         public SellBookWindow()
         {
+            // 1. Инициализация компонентов XAML
             try
             {
                 InitializeComponent();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка в InitializeComponent (XAML): {ex.Message}\n\n{ex.StackTrace}",
+                    "Критическая ошибка XAML", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
-                // Устанавливаем дату по умолчанию - сегодня
-                if (SaleDatePicker != null)
-                {
-                    SaleDatePicker.SelectedDate = DateTime.Today;
+            // 2. Создание сервисов
+            try
+            {
+                _bookService = new BookService();
+                _readerService = new ReaderService();
+                _saleService = new SaleService();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка создания сервисов: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
-                    // Ограничиваем выбор даты (не раньше 2000 года и не позже сегодня)
-                    SaleDatePicker.DisplayDateStart = new DateTime(2000, 1, 1);
-                    SaleDatePicker.DisplayDateEnd = DateTime.Today;
-                }
+            // 3. Установка значений по умолчанию для DatePicker
+            try
+            {
+                SaleDatePicker.SelectedDate = DateTime.Today;
+                SaleDatePicker.DisplayDateStart = new DateTime(2000, 1, 1);
+                SaleDatePicker.DisplayDateEnd = DateTime.Today;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка установки даты: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
 
+            // 4. Загрузка данных (с защитой от null)
+            try
+            {
                 LoadBooks();
                 LoadReaders();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при инициализации окна: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка при загрузке данных: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // Дополнительная инициализация после загрузки окна
+            // Дополнительная инициализация после полной загрузки окна (если нужно)
         }
 
         private void LoadBooks()
         {
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT ID, Title, Price, AvailableForSale 
-                        FROM Books 
-                        WHERE AvailableForSale > 0 
-                        ORDER BY Title";
-
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        var books = new List<BookItem>();
-                        while (reader.Read())
-                        {
-                            books.Add(new BookItem
-                            {
-                                ID = reader.GetInt32(0),
-                                Title = reader.GetString(1),
-                                Price = reader.GetDecimal(2),
-                                Available = reader.GetInt32(3)
-                            });
-                        }
-
-                        if (BookComboBox != null)
-                        {
-                            BookComboBox.ItemsSource = books;
-                        }
-                    }
-                }
+                var allBooks = _bookService?.GetAllBooks();
+                _books = allBooks?.Where(b => b != null && b.AvailableInstances > 0).ToList() ?? new List<BookDto>();
+                BookComboBox.ItemsSource = _books;
+                BookComboBox.DisplayMemberPath = "Title";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка загрузки книг: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка загрузки книг: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                BookComboBox.ItemsSource = new List<BookDto>();
             }
         }
 
@@ -106,34 +93,14 @@ namespace biblioteka
         {
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
-                {
-                    connection.Open();
-                    string query = "SELECT ID, FullName FROM Readers ORDER BY FullName";
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        var readers = new List<ReaderItem>();
-                        while (reader.Read())
-                        {
-                            readers.Add(new ReaderItem
-                            {
-                                ID = reader.GetInt32(0),
-                                FullName = reader.GetString(1)
-                            });
-                        }
-
-                        if (ReaderComboBox != null)
-                        {
-                            ReaderComboBox.ItemsSource = readers;
-                        }
-                    }
-                }
+                var readers = _readerService?.GetAll() ?? new List<ReaderDto>();
+                ReaderComboBox.ItemsSource = readers;
+                ReaderComboBox.DisplayMemberPath = "FullName";
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка загрузки читателей: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка загрузки читателей: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                ReaderComboBox.ItemsSource = new List<ReaderDto>();
             }
         }
 
@@ -141,45 +108,29 @@ namespace biblioteka
         {
             try
             {
-                if (BookComboBox.SelectedItem is BookItem book)
+                if (BookComboBox.SelectedItem is BookDto selectedBook)
                 {
-                    if (PriceBox != null)
-                    {
-                        PriceBox.Text = book.Price.ToString("F2");
-                    }
-                    if (QuantityBox != null)
-                    {
-                        QuantityBox.Text = "1";
-                    }
-
-                    // Показываем подсказку о доступном количестве
-                    if (AvailableHint != null)
-                    {
-                        AvailableHint.Text = $"Доступно экземпляров: {book.Available}";
-                        AvailableHint.Visibility = Visibility.Visible;
-                    }
-
+                    PriceBox.Text = selectedBook.Price.ToString("F2");
+                    QuantityBox.Text = "1";
+                    AvailableHint.Text = $"Доступно экземпляров: {selectedBook.AvailableInstances}";
+                    AvailableHint.Visibility = Visibility.Visible;
                     UpdateTotal();
                 }
                 else
                 {
-                    if (AvailableHint != null)
-                    {
-                        AvailableHint.Visibility = Visibility.Collapsed;
-                    }
+                    AvailableHint.Visibility = Visibility.Collapsed;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при выборе книги: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка выбора книги: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void QuantityBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             UpdateTotal();
-            CheckAvailability(); // Проверяем доступность при изменении количества
+            CheckAvailability();
         }
 
         private void PriceBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -191,28 +142,25 @@ namespace biblioteka
         {
             try
             {
-                if (BookComboBox?.SelectedItem is BookItem book &&
-                    QuantityBox != null && PriceBox != null &&
-                    int.TryParse(QuantityBox.Text, out int quantity) &&
-                    decimal.TryParse(PriceBox.Text, out decimal price))
+                if (!IsLoaded || TotalText == null)
+                    return;
+
+                if (BookComboBox?.SelectedItem is BookDto selectedBook &&
+                    int.TryParse(QuantityBox?.Text, out int quantity) &&
+                    decimal.TryParse(PriceBox?.Text, out decimal price))
                 {
                     decimal total = quantity * price;
-                    if (TotalText != null)
-                    {
-                        TotalText.Text = $"{total:F2} BYN";
-                    }
+                    TotalText.Text = $"{total:F2} BYN";
                 }
                 else
                 {
-                    if (TotalText != null)
-                    {
-                        TotalText.Text = "0 BYN";
-                    }
+                    TotalText.Text = "0 BYN";
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine("Ошибка обновления итога: " + ex.Message);
+                if (TotalText != null)
+                    TotalText.Text = "0 BYN";
             }
         }
 
@@ -220,101 +168,60 @@ namespace biblioteka
         {
             try
             {
-                if (BookComboBox?.SelectedItem is BookItem book &&
-                    QuantityBox != null &&
+                if (BookComboBox.SelectedItem is BookDto selectedBook &&
                     int.TryParse(QuantityBox.Text, out int quantity))
                 {
-                    if (quantity > book.Available)
+                    if (quantity > selectedBook.AvailableInstances)
                     {
-                        // Подсвечиваем поле красным, если количество превышает доступное
-                        QuantityBox.BorderBrush = System.Windows.Media.Brushes.Red;
-                        QuantityBox.ToolTip = $"Доступно только {book.Available} экземпляров";
-
-                        if (AvailableHint != null)
-                        {
-                            AvailableHint.Text = $"❌ Доступно только {book.Available} экземпляров!";
-                            AvailableHint.Foreground = System.Windows.Media.Brushes.Red;
-                        }
+                        QuantityBox.BorderBrush = Brushes.Red;
+                        QuantityBox.ToolTip = $"Доступно только {selectedBook.AvailableInstances} экземпляров";
+                        AvailableHint.Text = $"❌ Доступно только {selectedBook.AvailableInstances} экземпляров!";
+                        AvailableHint.Foreground = Brushes.Red;
                     }
                     else
                     {
-                        // Возвращаем нормальный цвет
-                        QuantityBox.BorderBrush = (System.Windows.Media.SolidColorBrush)FindResource("CardBorder");
+                        QuantityBox.BorderBrush = (SolidColorBrush)FindResource("CardBorder");
                         QuantityBox.ToolTip = null;
-
-                        if (AvailableHint != null)
-                        {
-                            AvailableHint.Text = $"Доступно экземпляров: {book.Available}";
-                            AvailableHint.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("TextSecondary");
-                        }
+                        AvailableHint.Text = $"Доступно экземпляров: {selectedBook.AvailableInstances}";
+                        AvailableHint.Foreground = (SolidColorBrush)FindResource("TextSecondary");
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine("Ошибка проверки доступности: " + ex.Message);
+                // Игнорируем ошибки оформления
             }
         }
 
         private void IncreaseQuantity_Click(object sender, RoutedEventArgs e)
         {
-            try
+            if (int.TryParse(QuantityBox.Text, out int quantity))
             {
-                if (QuantityBox != null && int.TryParse(QuantityBox.Text, out int quantity))
-                {
-                    quantity++;
-                    QuantityBox.Text = quantity.ToString();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                quantity++;
+                QuantityBox.Text = quantity.ToString();
             }
         }
 
         private void DecreaseQuantity_Click(object sender, RoutedEventArgs e)
         {
-            try
+            if (int.TryParse(QuantityBox.Text, out int quantity) && quantity > 1)
             {
-                if (QuantityBox != null && int.TryParse(QuantityBox.Text, out int quantity) && quantity > 1)
-                {
-                    quantity--;
-                    QuantityBox.Text = quantity.ToString();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                quantity--;
+                QuantityBox.Text = quantity.ToString();
             }
         }
 
         private void QuantityBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            if (!char.IsDigit(e.Text, 0))
-            {
-                e.Handled = true;
-            }
+            e.Handled = !char.IsDigit(e.Text, 0);
         }
 
         private void PriceBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
             if (!char.IsDigit(e.Text, 0) && e.Text != ".")
-            {
                 e.Handled = true;
-            }
-
-            if (e.Text == "." && ((TextBox)sender).Text.Contains("."))
-            {
+            else if (e.Text == "." && ((TextBox)sender).Text.Contains("."))
                 e.Handled = true;
-            }
-        }
-
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-            Close();
         }
 
         private void AddReader_Click(object sender, RoutedEventArgs e)
@@ -330,61 +237,41 @@ namespace biblioteka
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при добавлении читателя: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка добавления читателя: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private bool IsValidSaleDate(DateTime? date)
+        private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!date.HasValue)
-                return false;
-
-            DateTime selectedDate = date.Value.Date;
-            DateTime minDate = new DateTime(2000, 1, 1);
-            DateTime maxDate = DateTime.Today;
-
-            return selectedDate >= minDate && selectedDate <= maxDate;
+            DialogResult = false;
+            Close();
         }
 
         private void SellButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (BookComboBox.SelectedItem == null)
+                if (!(BookComboBox.SelectedItem is BookDto selectedBook))
                 {
                     MessageBox.Show("Выберите книгу!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (ReaderComboBox.SelectedItem == null)
+                if (!(ReaderComboBox.SelectedItem is ReaderDto selectedReader))
                 {
                     MessageBox.Show("Выберите покупателя!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (!IsValidSaleDate(SaleDatePicker.SelectedDate))
+                if (!SaleDatePicker.SelectedDate.HasValue)
                 {
-                    MessageBox.Show("Некорректная дата продажи!\n\nДата должна быть:\n• Не раньше 01.01.2000\n• Не позже сегодняшнего дня",
-                        "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    SaleDatePicker.Focus();
+                    MessageBox.Show("Выберите дату продажи!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-
-                var book = (BookItem)BookComboBox.SelectedItem;
-                var reader = (ReaderItem)ReaderComboBox.SelectedItem;
 
                 if (!int.TryParse(QuantityBox.Text, out int quantity) || quantity <= 0)
                 {
                     MessageBox.Show("Введите корректное количество!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    QuantityBox.Focus();
-                    return;
-                }
-
-                if (quantity > book.Available)
-                {
-                    MessageBox.Show($"Доступно только {book.Available} экземпляров!", "Ошибка",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     QuantityBox.Focus();
                     return;
                 }
@@ -396,38 +283,27 @@ namespace biblioteka
                     return;
                 }
 
-                using (var connection = DatabaseHelper.GetConnection())
+                var saleDto = new SaleCreateDto
                 {
-                    connection.Open();
+                    BookId = selectedBook.Id,
+                    ReaderId = selectedReader.Id,
+                    Quantity = quantity,
+                    UnitPrice = price,
+                    SaleDate = SaleDatePicker.SelectedDate.Value,
+                    Notes = NotesBox.Text?.Trim() ?? ""
+                };
 
-                    string query = @"
-                        INSERT INTO Sales (BookID, ReaderID, Quantity, UnitPrice, Notes, SaleDate)
-                        VALUES (@BookID, @ReaderID, @Quantity, @UnitPrice, @Notes, @SaleDate)";
+                _saleService.AddSale(saleDto);
 
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@BookID", book.ID);
-                        cmd.Parameters.AddWithValue("@ReaderID", reader.ID);
-                        cmd.Parameters.AddWithValue("@Quantity", quantity);
-                        cmd.Parameters.AddWithValue("@UnitPrice", price);
-                        cmd.Parameters.AddWithValue("@Notes",
-                            string.IsNullOrEmpty(NotesBox.Text) ? DBNull.Value : (object)NotesBox.Text);
-                        cmd.Parameters.AddWithValue("@SaleDate", SaleDatePicker.SelectedDate.Value);
+                MessageBox.Show($"Продажа на сумму {quantity * price:F2} BYN успешно оформлена!", "Успех",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
 
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    decimal total = quantity * price;
-                    MessageBox.Show($"Продажа на сумму {total:F2} BYN успешно оформлена!", "Успех",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                    DialogResult = true;
-                    Close();
-                }
+                DialogResult = true;
+                Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при оформлении продажи: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка оформления продажи: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }

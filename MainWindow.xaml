@@ -517,7 +517,7 @@
                 <DataGrid.Columns>
                     <!-- ID -->
                     <DataGridTextColumn Header="ID" 
-                                      Binding="{Binding Identifier}" 
+                                      Binding="{Binding Id}" 
                                       Width="70" 
                                       HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
@@ -560,7 +560,7 @@
 
                     <!-- Год -->
                     <DataGridTextColumn Header="Год" 
-                                      Binding="{Binding Yearr}" 
+                                      Binding="{Binding Year}" 
                                       Width="70" 
                                       HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
@@ -574,7 +574,7 @@
 
                     <!-- УДК -->
                     <DataGridTextColumn Header="УДК" 
-                                      Binding="{Binding UDKCode}" 
+                                      Binding="{Binding UdkCode}" 
                                       Width="90" 
                                       HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>

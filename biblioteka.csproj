@@ -113,14 +113,42 @@
     <Compile Include="AddUDKWindow.xaml.cs">
       <DependentUpon>AddUDKWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="DAO\AuthorDAO.cs" />
+    <Compile Include="DAO\BookDAO.cs" />
+    <Compile Include="DAO\BookInstanceDAO.cs" />
+    <Compile Include="DAO\IssueDAO.cs" />
+    <Compile Include="DAO\ReaderDAO.cs" />
+    <Compile Include="DAO\SaleDAO.cs" />
+    <Compile Include="DAO\UDKDAO.cs" />
     <Compile Include="DatabaseHelper.cs" />
     <Compile Include="DateConverter.cs" />
+    <Compile Include="DTO\AuthorCreateDto.cs" />
+    <Compile Include="DTO\AuthorDto.cs" />
+    <Compile Include="DTO\BookCreateDto.cs" />
+    <Compile Include="DTO\BookDto.cs" />
+    <Compile Include="DTO\BookInstanceDto.cs" />
+    <Compile Include="DTO\BookUpdateDto.cs" />
+    <Compile Include="DTO\IssueCreateDto.cs" />
+    <Compile Include="DTO\IssuedBookDto.cs" />
+    <Compile Include="DTO\ReaderCreateDto.cs" />
+    <Compile Include="DTO\ReaderDto.cs" />
+    <Compile Include="DTO\SaleCreateDto.cs" />
+    <Compile Include="DTO\SaleDto.cs" />
+    <Compile Include="DTO\UDKCreateDto.cs" />
+    <Compile Include="DTO\UDKDto.cs" />
     <Compile Include="EditBookWindow.xaml.cs">
       <DependentUpon>EditBookWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="EditUDKWindow.xaml.cs">
       <DependentUpon>EditUDKWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Entities\AuthorEntity.cs" />
+    <Compile Include="Entities\BookEntity.cs" />
+    <Compile Include="Entities\BookInstanceEntity.cs" />
+    <Compile Include="Entities\IssuedBookEntity.cs" />
+    <Compile Include="Entities\ReaderEntity.cs" />
+    <Compile Include="Entities\SaleEntity.cs" />
+    <Compile Include="Entities\UDKEntity.cs" />
     <Compile Include="GreaterThanConverter.cs" />
     <Compile Include="OverdueLoansWindow.xaml.cs">
       <DependentUpon>OverdueLoansWindow.xaml</DependentUpon>
@@ -134,6 +162,13 @@
     <Compile Include="SellBookWindow.xaml.cs">
       <DependentUpon>SellBookWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Services\AuthorService.cs" />
+    <Compile Include="Services\BookInstanceService.cs" />
+    <Compile Include="Services\BookService.cs" />
+    <Compile Include="Services\IssueService.cs" />
+    <Compile Include="Services\ReaderService.cs" />
+    <Compile Include="Services\SaleService.cs" />
+    <Compile Include="Services\UDKService.cs" />
     <Compile Include="UDKWindow.xaml.cs">
       <DependentUpon>UDKWindow.xaml</DependentUpon>
     </Compile>
@@ -204,7 +239,6 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Model.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -256,6 +290,7 @@
   <ItemGroup>
     <Content Include="Library.accdb" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="packages\MaterialDesignThemes.5.3.0\build\MaterialDesignThemes.targets" Condition="Exists('packages\MaterialDesignThemes.5.3.0\build\MaterialDesignThemes.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

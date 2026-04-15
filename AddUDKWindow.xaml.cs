@@ -1,6 +1,7 @@
 ﻿using System;
-using System.Data.SqlClient;
 using System.Windows;
+using biblioteka.DTO;
+using biblioteka.Services;
 
 namespace biblioteka
 {
@@ -13,56 +14,23 @@ namespace biblioteka
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(CodeTextBox.Text))
-            {
-                MessageBox.Show("Введите код УДК!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                CodeTextBox.Focus();
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(DescriptionTextBox.Text))
-            {
-                MessageBox.Show("Введите описание УДК!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                DescriptionTextBox.Focus();
-                return;
-            }
-
             try
             {
-                using (var connection = DatabaseHelper.GetConnection())
+                var dto = new UDKCreateDto
                 {
-                    connection.Open();
+                    Code = CodeTextBox.Text.Trim(),
+                    Description = DescriptionTextBox.Text.Trim()
+                };
 
-                    // Проверка уникальности
-                    string checkQuery = "SELECT COUNT(*) FROM UDK WHERE Code = @Code";
-                    using (SqlCommand checkCmd = new SqlCommand(checkQuery, connection))
-                    {
-                        checkCmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
-                        int exists = (int)checkCmd.ExecuteScalar();
-                        if (exists > 0)
-                        {
-                            MessageBox.Show("Такой код УДК уже существует!", "Ошибка",
-                                MessageBoxButton.OK, MessageBoxImage.Error);
-                            return;
-                        }
-                    }
+                var service = new UDKService();
+                service.Add(dto);
 
-                    string query = "INSERT INTO UDK (Code, Description) VALUES (@Code, @Description)";
-                    using (SqlCommand cmd = new SqlCommand(query, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@Code", CodeTextBox.Text.Trim());
-                        cmd.Parameters.AddWithValue("@Description", DescriptionTextBox.Text.Trim());
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    DialogResult = true;
-                    Close();
-                }
+                DialogResult = true;
+                Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ошибка при добавлении: " + ex.Message, "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
