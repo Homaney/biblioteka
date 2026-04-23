@@ -3,16 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:biblioteka"
         Title="Научно-техническая библиотека - Каталог книг"
-        Height="750" Width="1200"
+        Height="750" Width="1300"
         WindowStartupLocation="CenterScreen"
         Background="#0F0F0F"
         FontFamily="Segoe UI">
 
     <Window.Resources>
-        <!-- Конвертер для сравнения чисел -->
         <local:GreaterThanConverter x:Key="GreaterThanConverter"/>
 
-        <!-- Цветовая палитра -->
         <SolidColorBrush x:Key="PrimaryPurple" Color="#8B5CF6"/>
         <SolidColorBrush x:Key="PrimaryPurpleDark" Color="#7C3AED"/>
         <SolidColorBrush x:Key="Success" Color="#10B981"/>
@@ -29,7 +27,6 @@
         <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA"/>
         <SolidColorBrush x:Key="TextTertiary" Color="#71717A"/>
 
-        <!-- Стили для кнопок -->
         <Style x:Key="ModernButton" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource CardBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -112,7 +109,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Упрощенный стиль для TextBox с плейсхолдером -->
         <Style x:Key="SearchTextBox" TargetType="TextBox">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -142,7 +138,6 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для DataGrid - без линий -->
         <Style x:Key="ModernDataGrid" TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource CardBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -183,7 +178,6 @@
             <Setter Property="SeparatorBrush" Value="Transparent"/>
         </Style>
 
-        <!-- Стиль для строк - добавляем нижнюю границу -->
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
@@ -232,7 +226,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Стиль для ячейки DataGrid - убираем все границы -->
         <Style TargetType="DataGridCell">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -253,7 +246,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
     </Window.Resources>
 
     <Grid Margin="20">
@@ -287,9 +279,9 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="⚠️ Должники" 
-        Click="OverdueLoans_Click" 
-        Style="{StaticResource DangerButton}"
-        Margin="8,0,8,0"/>
+                        Click="OverdueLoans_Click" 
+                        Style="{StaticResource DangerButton}"
+                        Margin="8,0,8,0"/>
                 <Button Content="➕ Добавить книгу" 
                         Click="AddBook_Click" 
                         Style="{StaticResource SuccessButton}"
@@ -301,159 +293,71 @@
             </StackPanel>
         </Grid>
 
-        <!-- Карточки со статистикой -->
+        <!-- Карточки со статистикой (3 шт.) -->
         <Grid Grid.Row="1" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Всего книг -->
-            <Border Grid.Column="0" 
-                    Background="{StaticResource CardBackground}" 
-                    BorderBrush="{StaticResource CardBorder}"
-                    BorderThickness="1" 
-                    CornerRadius="8" 
-                    Padding="16" 
-                    Margin="0,0,8,0">
+            <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                    BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,8,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="📚" FontSize="24" Margin="0,0,12,0"/>
                     <StackPanel>
-                        <TextBlock x:Name="TotalBooksStat" 
-                                  Text="0" 
-                                  FontSize="24" 
-                                  FontWeight="Bold" 
-                                  Foreground="{StaticResource PrimaryPurple}"/>
-                        <TextBlock Text="Всего книг" 
-                                  FontSize="12" 
-                                  Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock x:Name="TotalBooksStat" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryPurple}"/>
+                        <TextBlock Text="Всего книг" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <!-- Выдано сейчас -->
-            <Border Grid.Column="1" 
-                    Background="{StaticResource CardBackground}" 
-                    BorderBrush="{StaticResource CardBorder}"
-                    BorderThickness="1" 
-                    CornerRadius="8" 
-                    Padding="16" 
-                    Margin="8,0,8,0">
+            <Border Grid.Column="1" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                    BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,8,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="📖" FontSize="24" Margin="0,0,12,0"/>
                     <StackPanel>
-                        <TextBlock x:Name="IssuedNowStat" 
-                                  Text="0" 
-                                  FontSize="24" 
-                                  FontWeight="Bold" 
-                                  Foreground="{StaticResource Success}"/>
-                        <TextBlock Text="Выдано сейчас" 
-                                  FontSize="12" 
-                                  Foreground="{StaticResource TextSecondary}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Продано за месяц -->
-            <Border Grid.Column="2" 
-                    Background="{StaticResource CardBackground}" 
-                    BorderBrush="{StaticResource CardBorder}"
-                    BorderThickness="1" 
-                    CornerRadius="8" 
-                    Padding="16" 
-                    Margin="8,0,8,0">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <TextBlock Text="💰" FontSize="24" Margin="0,0,12,0"/>
-                    <StackPanel>
-                        <TextBlock x:Name="MonthlySalesStat" 
-                                  Text="0 BYN" 
-                                  FontSize="24" 
-                                  FontWeight="Bold" 
-                                  Foreground="{StaticResource Info}"/>
-                        <TextBlock Text="Выручка за месяц" 
-                                  FontSize="12" 
-                                  Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock x:Name="IssuedNowStat" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Success}"/>
+                        <TextBlock Text="Выдано сейчас" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <!-- Читателей -->
-            <Border Grid.Column="3" 
-                    Background="{StaticResource CardBackground}" 
-                    BorderBrush="{StaticResource CardBorder}"
-                    BorderThickness="1" 
-                    CornerRadius="8" 
-                    Padding="16" 
-                    Margin="8,0,0,0">
+            <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                    BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,0,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="👥" FontSize="24" Margin="0,0,12,0"/>
                     <StackPanel>
-                        <TextBlock x:Name="ReadersCountStat" 
-                                  Text="0" 
-                                  FontSize="24" 
-                                  FontWeight="Bold" 
-                                  Foreground="{StaticResource Warning}"/>
-                        <TextBlock Text="Читателей" 
-                                  FontSize="12" 
-                                  Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock x:Name="ReadersCountStat" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Warning}"/>
+                        <TextBlock Text="Читателей" FontSize="12" Foreground="{StaticResource TextSecondary}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <!-- Панель поиска и фильтров -->
-        <Border Grid.Row="2" 
-                Background="{StaticResource CardBackground}" 
-                BorderBrush="{StaticResource CardBorder}"
-                BorderThickness="1" 
-                CornerRadius="8" 
-                Padding="16" 
-                Margin="0,0,0,16">
+        <!-- Панель поиска и действий -->
+        <Border Grid.Row="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Поиск с лупой и плейсхолдером -->
-                <Border Grid.Column="0" 
-                        Background="{StaticResource CardBackground}" 
-                        BorderBrush="{StaticResource CardBorder}"
-                        BorderThickness="1" 
-                        CornerRadius="6"
-                        Width="400" 
-                        Height="44">
+                <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                        BorderThickness="1" CornerRadius="6" Width="400" Height="44">
                     <Grid>
-                        <!-- Лупа -->
-                        <TextBlock Text="🔍" 
-                                   FontSize="16"
-                                   Foreground="{StaticResource TextTertiary}"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Left"
-                                   Margin="12,0,0,0"
-                                   IsHitTestVisible="False"/>
-
-                        <!-- Поле поиска -->
-                        <TextBox x:Name="SearchBox" 
-                                Style="{StaticResource SearchTextBox}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Padding="40,0,12,0"
-                                VerticalContentAlignment="Center"
-                                TextChanged="SearchBox_TextChanged"
-                                GotFocus="SearchBox_GotFocus"
-                                LostFocus="SearchBox_LostFocus"/>
-
-                        <!-- Плейсхолдер -->
-                        <TextBlock x:Name="SearchPlaceholder"
-                                   Text="Поиск по названию, автору, УДК..."
-                                   Foreground="{StaticResource TextTertiary}"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Left"
-                                   Margin="40,0,12,0"
-                                   IsHitTestVisible="False">
+                        <TextBlock Text="🔍" FontSize="16" Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0" IsHitTestVisible="False"/>
+                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchTextBox}" Background="Transparent"
+                                 BorderThickness="0" Padding="40,0,12,0" VerticalContentAlignment="Center"
+                                 TextChanged="SearchBox_TextChanged" GotFocus="SearchBox_GotFocus" LostFocus="SearchBox_LostFocus"/>
+                        <TextBlock x:Name="SearchPlaceholder" Text="Поиск по названию, автору, УДК..."
+                                   Foreground="{StaticResource TextTertiary}" VerticalAlignment="Center"
+                                   HorizontalAlignment="Left" Margin="40,0,12,0" IsHitTestVisible="False">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -471,55 +375,26 @@
                     </Grid>
                 </Border>
 
-                <!-- Действия -->
-                <StackPanel Grid.Column="1" 
-                           Orientation="Horizontal" 
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center">
-                    <Button Content="📋 Выдать книгу" 
-                            Click="IssueBook_Click" 
-                            Style="{StaticResource PrimaryButton}"
-                            Margin="8,0,8,0"/>
-                    <Button Content="💰 Продажа" 
-                            Click="SellBook_Click" 
-                            Style="{StaticResource SuccessButton}"
-                            Margin="0,0,8,0"/>
-                    <Button Content="👥 Читатели" 
-                            Click="ViewReaders_Click" 
-                            Style="{StaticResource ModernButton}"
-                            Margin="0,0,8,0"/>
-                    <Button Content="📖 УДК" 
-                            Click="ViewUDK_Click" 
-                            Style="{StaticResource ModernButton}"/>
-                    <Button Content="📊 Отчет по продажам" 
-                            Click="SalesReport_Click" 
-                            Style="{StaticResource InfoButton}"
-                            Margin="8,0,0,0"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="📋 Выдать книгу" Click="IssueBook_Click" Style="{StaticResource PrimaryButton}" Margin="8,0,8,0"/>
+                    <Button Content="📄 Списать" Click="WriteOff_Click" Style="{StaticResource DangerButton}" Margin="0,0,8,0"/>
+                    <Button Content="📋 История списаний" Click="WriteOffHistory_Click" Style="{StaticResource ModernButton}" Margin="0,0,8,0"/>
+                    <Button Content="👥 Читатели" Click="ViewReaders_Click" Style="{StaticResource ModernButton}" Margin="0,0,8,0"/>
+                    <Button Content="📖 УДК" Click="ViewUDK_Click" Style="{StaticResource ModernButton}"/>
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- Таблица книг -->
-        <Border Grid.Row="4" 
-                Background="{StaticResource CardBackground}" 
-                BorderBrush="{StaticResource CardBorder}"
-                BorderThickness="1" 
-                CornerRadius="8">
-            <DataGrid x:Name="BooksDataGrid"
-                     Style="{StaticResource ModernDataGrid}"
-                     MouseDoubleClick="BooksDataGrid_MouseDoubleClick"
-                     ToolTip="Двойной клик для редактирования книги"
-                     AutoGenerateColumns="False"
-                     HeadersVisibility="Column"
-                     RowHeaderWidth="0"
-                     BorderThickness="0">
+        <Border Grid.Row="4" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="1" CornerRadius="8">
+            <DataGrid x:Name="BooksDataGrid" Style="{StaticResource ModernDataGrid}"
+                      MouseDoubleClick="BooksDataGrid_MouseDoubleClick"
+                      ToolTip="Двойной клик для редактирования книги"
+                      AutoGenerateColumns="False" HeadersVisibility="Column" RowHeaderWidth="0" BorderThickness="0">
 
                 <DataGrid.Columns>
-                    <!-- ID -->
-                    <DataGridTextColumn Header="ID" 
-                                      Binding="{Binding Id}" 
-                                      Width="70" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -529,25 +404,7 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Название -->
-                    <DataGridTextColumn Header="Название" 
-                                      Binding="{Binding Title}" 
-                                      Width="3*" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Margin" Value="12,0,0,0"/>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-
-                    <!-- Авторы (фамилия с инициалами) -->
-                    <DataGridTextColumn Header="Авторы" 
-                                      Binding="{Binding AuthorShort}" 
-                                      Width="2.5*" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                    <DataGridTextColumn Header="Название" Binding="{Binding Title}" Width="3*" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -558,39 +415,18 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Год -->
-                    <DataGridTextColumn Header="Год" 
-                                      Binding="{Binding Year}" 
-                                      Width="70" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                    <DataGridTextColumn Header="Авторы" Binding="{Binding AuthorShort}" Width="2.5*" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                                 <Setter Property="VerticalAlignment" Value="Center"/>
                                 <Setter Property="Margin" Value="12,0,0,0"/>
+                                <Setter Property="TextWrapping" Value="Wrap"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- УДК -->
-                    <DataGridTextColumn Header="УДК" 
-                                      Binding="{Binding UdkCode}" 
-                                      Width="90" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Margin" Value="12,0,0,0"/>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-
-                    <!-- Доступно -->
-                    <DataGridTextColumn Header="Доступно" 
-                                      Binding="{Binding AvailableInstances}" 
-                                      Width="90" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                    <DataGridTextColumn Header="Год" Binding="{Binding Year}" Width="60" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -601,16 +437,45 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Описание -->
-                    <DataGridTextColumn Header="Описание" 
-                                      Binding="{Binding Description}" 
-                                      Width="2.5*" 
-                                      HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                    <DataGridTextColumn Header="УДК" Binding="{Binding UdkCode}" Width="90" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="12,0,0,0"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <DataGridTextColumn Header="Доступно" Binding="{Binding AvailableInstances}" Width="80" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="0"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <DataGridTextColumn Header="Мин. цена" Binding="{Binding MinPrice, StringFormat={}{0:F2} BYN}" Width="100" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource Success}"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                <Setter Property="Margin" Value="0,0,12,0"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="2.5*" HeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
                                 <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Margin" Value="12,0,0,0"/>
+                                <Setter Property="Margin" Value="12,0,12,0"/>
                                 <Setter Property="TextWrapping" Value="Wrap"/>
                                 <Setter Property="MaxHeight" Value="60"/>
                             </Style>
@@ -621,16 +486,9 @@
         </Border>
 
         <!-- Статус бар -->
-        <Border Grid.Row="5" 
-                Background="{StaticResource CardBackground}" 
-                BorderBrush="{StaticResource CardBorder}"
-                BorderThickness="1,0,1,1" 
-                CornerRadius="0,0,8,8" 
-                Padding="12,8">
-            <TextBlock x:Name="StatusTextBlock" 
-                      Text="Готово" 
-                      Foreground="{StaticResource TextSecondary}" 
-                      FontSize="12"/>
+        <Border Grid.Row="5" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
+                BorderThickness="1,0,1,1" CornerRadius="0,0,8,8" Padding="12,8">
+            <TextBlock x:Name="StatusTextBlock" Text="Готово" Foreground="{StaticResource TextSecondary}" FontSize="12"/>
         </Border>
     </Grid>
 </Window>

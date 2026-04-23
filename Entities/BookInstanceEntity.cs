@@ -10,6 +10,8 @@ namespace biblioteka.Entities
         public string Status { get; set; }
         public DateTime? AcquisitionDate { get; set; }
         public string InvoiceNumber { get; set; }
-        public bool CanBeSold { get; set; }
+        public bool CanBeSold { get; set; } 
+        public decimal Price { get; set; }
+        public int? WriteOffActID { get; set; } 
     }
 }

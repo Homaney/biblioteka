@@ -1,12 +1,11 @@
-﻿using biblioteka.DAO;
-using biblioteka.DTO;
-using biblioteka.Services;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using biblioteka.DTO;
+using biblioteka.Services;
 
 namespace biblioteka
 {
@@ -18,8 +17,8 @@ namespace biblioteka
         private readonly AuthorService _authorService;
 
         private List<UDKDto> _udkList;
-        private List<string> _authorsList;
-        private List<string> _selectedAuthors = new List<string>();
+        private List<AuthorDto> _authorsList;
+        private List<AuthorDto> _selectedAuthors = new List<AuthorDto>();
         private int _selectedUdkId = -1;
         private int _availableInstancesCount = 0;
         private BookDto _currentBookDto;
@@ -42,11 +41,9 @@ namespace biblioteka
         {
             try
             {
-                // Загружаем списки
-                _authorsList = _authorService.GetAll().Select(a => a.FullName).ToList();
+                _authorsList = _authorService.GetAll();
                 _udkList = _udkService.GetAll();
 
-                // Загружаем книгу
                 _currentBookDto = _bookService.GetBookById(_bookId);
                 if (_currentBookDto == null)
                 {
@@ -55,23 +52,16 @@ namespace biblioteka
                     return;
                 }
 
-                // Заполняем поля
                 TitleBox.Text = _currentBookDto.Title;
                 YearBox.Text = _currentBookDto.Year.ToString();
                 DescriptionBox.Text = _currentBookDto.Description;
-                PriceBox.Text = _currentBookDto.Price.ToString("F2");
 
-                // Авторы
-                if (!string.IsNullOrEmpty(_currentBookDto.Authors))
+                _selectedAuthors.Clear();
+                foreach (var author in _currentBookDto.Authors)
                 {
-                    _selectedAuthors.Clear();
-                    foreach (string author in _currentBookDto.Authors.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
-                    {
-                        _selectedAuthors.Add(author.Trim());
-                    }
+                    _selectedAuthors.Add(author);
                 }
 
-                // УДК
                 _selectedUdkId = _currentBookDto.UdkId;
                 var udk = _udkList.FirstOrDefault(u => u.Id == _selectedUdkId);
                 if (udk != null)
@@ -95,8 +85,14 @@ namespace biblioteka
             var contextMenu = new ContextMenu();
             foreach (var author in _authorsList)
             {
-                var menuItem = new MenuItem { Header = author };
-                menuItem.Click += (s, args) => AuthorsTextBox.Text = author;
+                var menuItem = new MenuItem { Header = author.FullName, Tag = author };
+                menuItem.Click += (s, args) =>
+                {
+                    if (s is MenuItem mi && mi.Tag is AuthorDto selectedAuthor)
+                    {
+                        AuthorsTextBox.Text = selectedAuthor.FullName;
+                    }
+                };
                 contextMenu.Items.Add(menuItem);
             }
             contextMenu.PlacementTarget = AuthorsTextBox;
@@ -116,8 +112,11 @@ namespace biblioteka
                 };
                 menuItem.Click += (s, args) =>
                 {
-                    UDKTextBox.Text = udk.Code;
-                    _selectedUdkId = udk.Id;
+                    if (s is MenuItem mi)
+                    {
+                        UDKTextBox.Text = udk.Code;
+                        _selectedUdkId = udk.Id;
+                    }
                 };
                 contextMenu.Items.Add(menuItem);
             }
@@ -128,21 +127,27 @@ namespace biblioteka
 
         private void AddAuthor_Click(object sender, RoutedEventArgs e)
         {
-            string author = AuthorsTextBox.Text.Trim();
-            if (!string.IsNullOrEmpty(author) && author != "Выберите автора...")
+            string authorName = AuthorsTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(authorName) || authorName == "Выберите автора...")
+                return;
+
+            var author = _authorsList.FirstOrDefault(a => a.FullName.Equals(authorName, StringComparison.OrdinalIgnoreCase));
+            if (author == null)
             {
-                if (!_selectedAuthors.Contains(author))
-                {
-                    _selectedAuthors.Add(author);
-                    SelectedAuthorsList.Items.Refresh();
-                }
-                AuthorsTextBox.Text = "Выберите автора...";
+                author = new AuthorDto { FullName = authorName };
             }
+
+            if (!_selectedAuthors.Any(a => a.FullName.Equals(author.FullName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _selectedAuthors.Add(author);
+                SelectedAuthorsList.Items.Refresh();
+            }
+            AuthorsTextBox.Text = "Выберите автора...";
         }
 
         private void RemoveAuthor_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string author)
+            if (sender is Button btn && btn.Tag is AuthorDto author)
             {
                 _selectedAuthors.Remove(author);
                 SelectedAuthorsList.Items.Refresh();
@@ -151,17 +156,14 @@ namespace biblioteka
 
         private void AddInstance_Click(object sender, RoutedEventArgs e)
         {
-            try
+            var dialog = new AddInstanceDialog(_bookId);
+            dialog.Owner = this;
+            if (dialog.ShowDialog() == true)
             {
-                _bookService.AddInstance(_bookId);
                 _currentBookDto = _bookService.GetBookById(_bookId);
                 _availableInstancesCount = _currentBookDto.AvailableInstances;
                 InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
-                MessageBox.Show("Экземпляр добавлен!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                BookUpdated?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -173,7 +175,8 @@ namespace biblioteka
                 return;
             }
 
-            if (MessageBox.Show("Удалить один экземпляр?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            if (MessageBox.Show("Удалить один доступный экземпляр?", "Подтверждение",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
                 return;
 
             try
@@ -182,20 +185,13 @@ namespace biblioteka
                 _currentBookDto = _bookService.GetBookById(_bookId);
                 _availableInstancesCount = _currentBookDto.AvailableInstances;
                 InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
-                MessageBox.Show("Экземпляр удален!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                BookUpdated?.Invoke(this, EventArgs.Empty);
+                MessageBox.Show("Экземпляр удалён!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Ошибка: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        private void PriceBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
-        {
-            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
-                e.Handled = true;
-            if (e.Text == "." && ((TextBox)sender).Text.Contains("."))
-                e.Handled = true;
         }
 
         private void SaveChanges_Click(object sender, RoutedEventArgs e)
@@ -210,8 +206,7 @@ namespace biblioteka
                     Year = int.Parse(YearBox.Text),
                     UdkId = _selectedUdkId,
                     Description = DescriptionBox.Text.Trim(),
-                    Price = decimal.Parse(PriceBox.Text),
-                    Authors = _selectedAuthors
+                    Authors = _selectedAuthors.ToList()
                 };
 
                 _bookService.UpdateBook(_bookId, updateDto);
@@ -248,12 +243,6 @@ namespace biblioteka
             {
                 MessageBox.Show("Введите корректный год!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 YearBox.Focus();
-                return false;
-            }
-            if (!decimal.TryParse(PriceBox.Text, out decimal price) || price < 0)
-            {
-                MessageBox.Show("Введите корректную цену!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                PriceBox.Focus();
                 return false;
             }
             return true;
