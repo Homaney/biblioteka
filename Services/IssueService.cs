@@ -41,6 +41,7 @@ namespace biblioteka.Services
             {
                 var dto = MapToDto(e);
                 dto.DaysOverdue = (DateTime.Now - e.PlannedReturnDate).Days;
+                dto.Fine = CalculateFine(e.ID);   // расчёт штрафа для просроченных
                 return dto;
             }).ToList();
         }
@@ -125,7 +126,6 @@ namespace biblioteka.Services
             if (issue.PlannedReturnDate >= DateTime.Today)
                 return 0;
 
-            // Получаем цену экземпляра
             var instance = _instanceDAO.GetById(issue.InstanceID);
             if (instance == null) return 0;
 
@@ -155,7 +155,8 @@ namespace biblioteka.Services
                 InventoryNumber = instance?.InventoryNumber ?? "—",
                 DaysOverdue = e.Status == "Выдана" && e.PlannedReturnDate < DateTime.Now
                     ? (DateTime.Now - e.PlannedReturnDate).Days
-                    : 0
+                    : 0,
+                Fine = 0  // по умолчанию
             };
         }
     }

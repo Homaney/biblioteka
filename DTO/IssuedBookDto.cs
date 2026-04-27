@@ -16,5 +16,6 @@ namespace biblioteka.DTO
         public string ReaderName { get; set; }
         public string InventoryNumber { get; set; }
         public int DaysOverdue { get; set; }
+        public decimal Fine { get; set; }
     }
 }
