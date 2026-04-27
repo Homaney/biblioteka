@@ -148,10 +148,11 @@ namespace biblioteka.Services
 
         public void AddInstance(int bookId, decimal price)
         {
+            string inventoryNumber = _instanceDAO.GenerateInventoryNumber(bookId);
             var instance = new BookInstanceEntity
             {
                 BookID = bookId,
-                InventoryNumber = $"BK-{bookId}-{DateTime.Now:yyyyMMdd-HHmmss}",
+                InventoryNumber = inventoryNumber,
                 Status = "Доступна",
                 CanBeSold = true,
                 Price = price
@@ -195,6 +196,24 @@ namespace biblioteka.Services
                 throw new ArgumentException($"Год должен быть от 1000 до {DateTime.Now.Year + 5}");
         }
 
+        public void AddInstances(int bookId, int quantity, decimal price, string invoiceNumber)
+        {
+            if (bookId <= 0)
+                throw new ArgumentException("Выберите книгу");
+            if (quantity <= 0)
+                throw new ArgumentException("Количество должно быть больше 0");
+            if (price < 0)
+                throw new ArgumentException("Цена не может быть отрицательной");
+            if (string.IsNullOrWhiteSpace(invoiceNumber))
+                throw new ArgumentException("Введите номер накладной");
+
+            // Проверка уникальности номера накладной
+            if (_instanceDAO.IsInvoiceNumberExists(invoiceNumber))
+                throw new InvalidOperationException($"Накладная с номером «{invoiceNumber}» уже существует. Номера накладных должны быть уникальными.");
+
+            DateTime acquisitionDate = DateTime.Today;
+            _instanceDAO.InsertInstances(bookId, quantity, price, invoiceNumber, acquisitionDate);
+        }
         private string ShortenAuthors(List<string> authors)
         {
             if (authors == null || authors.Count == 0)

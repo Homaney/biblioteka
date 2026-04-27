@@ -10,5 +10,6 @@ namespace biblioteka.Entities
         public string Reason { get; set; }
         public DateTime CreatedAt { get; set; }
         public int InstanceCount { get; set; }
+        public decimal TotalPrice { get; set; }
     }
 }

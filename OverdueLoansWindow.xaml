@@ -9,7 +9,6 @@
         ResizeMode="CanResize">
 
     <Window.Resources>
-        <!-- Цветовая палитра -->
         <SolidColorBrush x:Key="PrimaryPurple" Color="#8B5CF6"/>
         <SolidColorBrush x:Key="PrimaryPurpleDark" Color="#7C3AED"/>
         <SolidColorBrush x:Key="Success" Color="#10B981"/>
@@ -26,7 +25,6 @@
         <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA"/>
         <SolidColorBrush x:Key="TextTertiary" Color="#71717A"/>
 
-        <!-- Базовый стиль для всех кнопок -->
         <Style x:Key="BaseButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -55,21 +53,6 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для кнопки обновления (синяя) -->
-        <Style x:Key="RefreshButton" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource Info}"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource InfoDark}"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#1E4A7A"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Стиль для кнопки возврата (красная, компактная) -->
         <Style x:Key="ReturnButton" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
             <Setter Property="Background" Value="{StaticResource Danger}"/>
             <Setter Property="Padding" Value="6,3"/>
@@ -81,13 +64,9 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource DangerDark}"/>
                 </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#B91C1C"/>
-                </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Стиль для DataGrid - БЕЗ ЛИШНИХ ПОЛОС -->
         <Style x:Key="ModernDataGrid" TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource CardBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -114,7 +93,6 @@
             <Setter Property="RowHeaderWidth" Value="0"/>
         </Style>
 
-        <!-- Стиль для заголовков столбцов - БЕЗ РАЗДЕЛИТЕЛЕЙ -->
         <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="#2D2D2D"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -128,7 +106,6 @@
             <Setter Property="SeparatorBrush" Value="Transparent"/>
         </Style>
 
-        <!-- Стиль строки DataGrid – без лишних границ -->
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
@@ -147,7 +124,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Стиль ячейки DataGrid -->
         <Style TargetType="DataGridCell">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -164,7 +140,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Стиль для блока статистики -->
         <Style x:Key="StatsBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBackground}"/>
             <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
@@ -172,7 +147,6 @@
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="12"/>
         </Style>
-
     </Window.Resources>
 
     <Grid Margin="20">
@@ -182,41 +156,19 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Заголовок и кнопка обновления -->
+        <!-- Заголовок -->
         <Grid Grid.Row="0" Margin="0,0,0,15">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="⚠️" 
-                           FontSize="24" 
-                           Foreground="{StaticResource Danger}"
-                           Margin="0,0,10,0"
-                           VerticalAlignment="Center"/>
-                <TextBlock Text="Читатели с просроченными книгами" 
-                           FontSize="20" 
-                           FontWeight="Bold"
-                           Foreground="{StaticResource TextPrimary}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Content="🔄 Обновить" 
-                        Style="{StaticResource RefreshButton}"
-                        Click="RefreshButton_Click"
-                        Padding="16,8"/>
+                <TextBlock Text="⚠️" FontSize="24" Foreground="{StaticResource Danger}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                <TextBlock Text="Читатели с просроченными книгами" FontSize="20" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
             </StackPanel>
         </Grid>
 
-        <!-- Краткая статистика -->
+        <!-- Статистика -->
         <Border Grid.Row="1" Style="{StaticResource StatsBorderStyle}" Margin="0,0,0,15">
-            <TextBlock x:Name="StatsText" 
-                       Text="Загрузка..." 
-                       Foreground="{StaticResource TextSecondary}"
-                       FontSize="13"
-                       HorizontalAlignment="Center"/>
+            <TextBlock x:Name="StatsText" Text="Загрузка..." Foreground="{StaticResource TextSecondary}"
+                       FontSize="13" HorizontalAlignment="Center"/>
         </Border>
 
         <!-- Таблица должников -->
@@ -225,10 +177,8 @@
                 CornerRadius="8">
             <DataGrid x:Name="OverdueDataGrid" 
                       Style="{StaticResource ModernDataGrid}"
-                      ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}"
-                      RowStyle="{StaticResource {x:Type DataGridRow}}">
+                      ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}">
                 <DataGrid.Columns>
-                    <!-- Читатель -->
                     <DataGridTextColumn Header="Читатель" Binding="{Binding ReaderName}" Width="130">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -241,7 +191,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Книга -->
                     <DataGridTextColumn Header="Книга" Binding="{Binding BookTitle}" Width="*">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -254,7 +203,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Инвентарный номер -->
                     <DataGridTextColumn Header="Инв. №" Binding="{Binding InventoryNumber}" Width="95">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -268,7 +216,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Дата выдачи -->
                     <DataGridTextColumn Header="Выдана" Binding="{Binding IssueDate, StringFormat=dd.MM.yyyy}" Width="80">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -281,7 +228,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- План возврата -->
                     <DataGridTextColumn Header="План возврата" Binding="{Binding PlannedReturnDate, StringFormat=dd.MM.yyyy}" Width="115">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -294,7 +240,6 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Дней проср. - МАКСИМАЛЬНО КОРОТКИЙ ЗАГОЛОВОК -->
                     <DataGridTextColumn Header="Дней" Binding="{Binding DaysOverdue}" Width="70">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -308,14 +253,13 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <!-- Действие -->
                     <DataGridTemplateColumn Header="Действие" Width="90">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="Вернуть" 
                                         Style="{StaticResource ReturnButton}"
                                         Click="ReturnBook_Click"
-                                        Tag="{Binding IssuedId}"/>
+                                        Tag="{Binding Id}"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

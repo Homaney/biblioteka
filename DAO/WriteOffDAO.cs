@@ -57,39 +57,6 @@ namespace biblioteka.DAO
             }
         }
 
-        public List<WriteOffActWithCount> GetAllWithCount()
-        {
-            var list = new List<WriteOffActWithCount>();
-            using (var connection = DatabaseHelper.GetConnection())
-            {
-                connection.Open();
-                string query = @"
-            SELECT wa.ID, wa.ActNumber, wa.WriteOffDate, wa.Reason, wa.CreatedAt,
-                   COUNT(bi.ID) AS InstanceCount
-            FROM WriteOffActs wa
-            LEFT JOIN BookInstances bi ON wa.ID = bi.WriteOffActID
-            GROUP BY wa.ID, wa.ActNumber, wa.WriteOffDate, wa.Reason, wa.CreatedAt
-            ORDER BY wa.WriteOffDate DESC";
-                using (var cmd = new SqlCommand(query, connection))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        list.Add(new WriteOffActWithCount
-                        {
-                            Id = reader.GetInt32(0),
-                            ActNumber = reader.GetString(1),
-                            WriteOffDate = reader.GetDateTime(2),
-                            Reason = reader.GetString(3),
-                            CreatedAt = reader.GetDateTime(4),
-                            InstanceCount = reader.GetInt32(5)
-                        });
-                    }
-                }
-            }
-            return list;
-        }
-
         public WriteOffActEntity GetActById(int id)
         {
             using (var connection = DatabaseHelper.GetConnection())
@@ -151,9 +118,9 @@ namespace biblioteka.DAO
                     {
                         // 1. Обновляем сам акт
                         string updateActQuery = @"
-                    UPDATE WriteOffActs 
-                    SET ActNumber = @ActNumber, WriteOffDate = @WriteOffDate, Reason = @Reason
-                    WHERE ID = @ID";
+                            UPDATE WriteOffActs 
+                            SET ActNumber = @ActNumber, WriteOffDate = @WriteOffDate, Reason = @Reason
+                            WHERE ID = @ID";
                         using (var cmd = new SqlCommand(updateActQuery, connection, transaction))
                         {
                             cmd.Parameters.AddWithValue("@ID", act.ID);
@@ -168,9 +135,9 @@ namespace biblioteka.DAO
                         foreach (var oldId in oldInstanceIds)
                         {
                             string revertQuery = @"
-                        UPDATE BookInstances 
-                        SET Status = N'Доступна', WriteOffActID = NULL
-                        WHERE ID = @ID";
+                                UPDATE BookInstances 
+                                SET Status = N'Доступна', WriteOffActID = NULL
+                                WHERE ID = @ID";
                             using (var cmd = new SqlCommand(revertQuery, connection, transaction))
                             {
                                 cmd.Parameters.AddWithValue("@ID", oldId);
@@ -182,9 +149,9 @@ namespace biblioteka.DAO
                         foreach (var newId in newInstanceIds)
                         {
                             string updateInstanceQuery = @"
-                        UPDATE BookInstances 
-                        SET Status = N'Списана', WriteOffActID = @ActID
-                        WHERE ID = @ID AND Status = N'Доступна'";
+                                UPDATE BookInstances 
+                                SET Status = N'Списана', WriteOffActID = @ActID
+                                WHERE ID = @ID AND Status = N'Доступна'";
                             using (var cmd = new SqlCommand(updateInstanceQuery, connection, transaction))
                             {
                                 cmd.Parameters.AddWithValue("@ActID", act.ID);
@@ -223,6 +190,41 @@ namespace biblioteka.DAO
                             WriteOffDate = reader.GetDateTime(2),
                             Reason = reader.GetString(3),
                             CreatedAt = reader.GetDateTime(4)
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+
+        public List<WriteOffActWithCount> GetAllWithCount()
+        {
+            var list = new List<WriteOffActWithCount>();
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = @"
+                    SELECT wa.ID, wa.ActNumber, wa.WriteOffDate, wa.Reason, wa.CreatedAt,
+                           COUNT(bi.ID) AS InstanceCount,
+                           ISNULL(SUM(bi.Price), 0) AS TotalPrice
+                    FROM WriteOffActs wa
+                    LEFT JOIN BookInstances bi ON wa.ID = bi.WriteOffActID
+                    GROUP BY wa.ID, wa.ActNumber, wa.WriteOffDate, wa.Reason, wa.CreatedAt
+                    ORDER BY wa.WriteOffDate DESC";
+                using (var cmd = new SqlCommand(query, connection))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        list.Add(new WriteOffActWithCount
+                        {
+                            Id = reader.GetInt32(0),
+                            ActNumber = reader.GetString(1),
+                            WriteOffDate = reader.GetDateTime(2),
+                            Reason = reader.GetString(3),
+                            CreatedAt = reader.GetDateTime(4),
+                            InstanceCount = reader.GetInt32(5),
+                            TotalPrice = reader.GetDecimal(6)
                         });
                     }
                 }

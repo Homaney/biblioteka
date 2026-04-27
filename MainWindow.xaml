@@ -258,7 +258,6 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Заголовок и статистика -->
         <Grid Grid.Row="0" Margin="0,0,0,20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -293,7 +292,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- Карточки со статистикой (3 шт.) -->
         <Grid Grid.Row="1" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -301,7 +299,6 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Всего книг -->
             <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                     BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,8,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -313,7 +310,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Выдано сейчас -->
             <Border Grid.Column="1" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                     BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,8,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -325,7 +321,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Читателей -->
             <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                     BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,0,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -338,7 +333,6 @@
             </Border>
         </Grid>
 
-        <!-- Панель поиска и действий -->
         <Border Grid.Row="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                 BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
             <Grid>
@@ -377,6 +371,7 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="📋 Выдать книгу" Click="IssueBook_Click" Style="{StaticResource PrimaryButton}" Margin="8,0,8,0"/>
+                    <Button Content="📦 Накладная" Click="InvoiceAdd_Click" Style="{StaticResource SuccessButton}" Margin="0,0,8,0"/>
                     <Button Content="📄 Списать" Click="WriteOff_Click" Style="{StaticResource DangerButton}" Margin="0,0,8,0"/>
                     <Button Content="📋 История списаний" Click="WriteOffHistory_Click" Style="{StaticResource ModernButton}" Margin="0,0,8,0"/>
                     <Button Content="👥 Читатели" Click="ViewReaders_Click" Style="{StaticResource ModernButton}" Margin="0,0,8,0"/>
@@ -385,7 +380,6 @@
             </Grid>
         </Border>
 
-        <!-- Таблица книг -->
         <Border Grid.Row="4" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                 BorderThickness="1" CornerRadius="8">
             <DataGrid x:Name="BooksDataGrid" Style="{StaticResource ModernDataGrid}"
@@ -485,7 +479,6 @@
             </DataGrid>
         </Border>
 
-        <!-- Статус бар -->
         <Border Grid.Row="5" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorder}"
                 BorderThickness="1,0,1,1" CornerRadius="0,0,8,8" Padding="12,8">
             <TextBlock x:Name="StatusTextBlock" Text="Готово" Foreground="{StaticResource TextSecondary}" FontSize="12"/>

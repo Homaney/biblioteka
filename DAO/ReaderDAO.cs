@@ -5,28 +5,36 @@ using biblioteka.Entities;
 
 namespace biblioteka.DAO
 {
-	public class ReaderDAO
-	{
-		public List<ReaderEntity> GetAll()
-		{
-			var list = new List<ReaderEntity>();
-			using (var connection = DatabaseHelper.GetConnection())
-			{
-				connection.Open();
-				string query = "SELECT ID, FullName, Phone, Address, BirthDate, RegistrationDate FROM Readers ORDER BY FullName";
-				using (var cmd = new SqlCommand(query, connection))
-				using (var reader = cmd.ExecuteReader())
-				{
-					while (reader.Read())
-					{
-						list.Add(MapReaderToEntity(reader));
-					}
-				}
-			}
-			return list;
-		}
+    public class ReaderDAO
+    {
+        public List<ReaderEntity> GetAll()
+        {
+            var list = new List<ReaderEntity>();
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = "SELECT ID, FullName, Phone, Address, BirthDate, RegistrationDate FROM Readers ORDER BY FullName";
+                using (var cmd = new SqlCommand(query, connection))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        list.Add(new ReaderEntity
+                        {
+                            ID = reader.GetInt32(0),
+                            FullName = reader.GetString(1),
+                            Phone = reader.IsDBNull(2) ? null : reader.GetString(2),
+                            Address = reader.IsDBNull(3) ? null : reader.GetString(3),
+                            BirthDate = reader.GetDateTime(4),
+                            RegistrationDate = reader.GetDateTime(5)
+                        });
+                    }
+                }
+            }
+            return list;
+        }
 
-		public ReaderEntity GetById(int id)
+        public ReaderEntity GetById(int id)
 		{
 			using (var connection = DatabaseHelper.GetConnection())
 			{

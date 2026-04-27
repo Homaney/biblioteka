@@ -41,7 +41,6 @@ namespace biblioteka
 
         private void InitializePlaceholders()
         {
-            AddPlaceholderBehavior(IdentifierBox);
             AddPlaceholderBehavior(TitleBox);
             AddPlaceholderBehavior(YearBox);
             AddPlaceholderBehavior(DescriptionBox);
@@ -334,7 +333,6 @@ namespace biblioteka
 
         private void ClearForm()
         {
-            IdentifierBox.Text = "";
             TitleBox.Text = "";
             YearBox.Text = "";
             DescriptionBox.Text = "";
@@ -346,7 +344,6 @@ namespace biblioteka
             QuantityBox.Text = "1";
             SelectedAuthorsList.Items.Refresh();
 
-            UpdatePlaceholderVisibility(IdentifierBox);
             UpdatePlaceholderVisibility(TitleBox);
             UpdatePlaceholderVisibility(YearBox);
             UpdatePlaceholderVisibility(DescriptionBox);

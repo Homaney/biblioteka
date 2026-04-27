@@ -58,10 +58,12 @@ namespace biblioteka
                 ReaderCard.BeginAnimation(OpacityProperty, fadeIn);
                 SelectHint.Visibility = Visibility.Collapsed;
                 PrintButton.Visibility = Visibility.Visible;
+                DeleteReaderButton.Visibility = Visibility.Visible;
             }
             else
             {
                 PrintButton.Visibility = Visibility.Collapsed;
+                DeleteReaderButton.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -166,9 +168,14 @@ namespace biblioteka
 
                 try
                 {
+                    // Проверяем, есть ли просрочка, чтобы показать штраф до возврата
+                    decimal fine = _issueService.CalculateFine(issuedId);
+                    string fineMessage = fine > 0 ? $"\n\nШтраф за просрочку: {fine:F2} BYN" : "";
+
                     _issueService.ReturnBook(issuedId);
 
-                    MessageBox.Show("Книга успешно возвращена!", "Возврат книги", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show($"Книга успешно возвращена!{fineMessage}", "Возврат книги",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
 
                     if (isHistoryView)
                         LoadHistoryBooks(currentReaderId);
@@ -232,6 +239,43 @@ namespace biblioteka
             {
                 MessageBox.Show($"Ошибка при добавлении читателя: {ex.Message}", "Ошибка",
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void DeleteReader_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(ReadersList.SelectedItem is ReaderDto selected))
+            {
+                MessageBox.Show("Выберите читателя для удаления.", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Вы уверены, что хотите удалить читателя «{selected.FullName}»?\n\nВся история выдач будет утеряна.",
+                "⚠️ Подтверждение удаления",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                _readerService.Delete(selected.Id);
+                MessageBox.Show("Читатель удалён.", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
+                LoadReaders();
+
+                // Очищаем карточку
+                ReaderCard.Visibility = Visibility.Collapsed;
+                SelectHint.Visibility = Visibility.Visible;
+                PrintButton.Visibility = Visibility.Collapsed;
+                DeleteReaderButton.Visibility = Visibility.Collapsed;
+                CurrentBooksList.ItemsSource = null;
+                HistoryBooksList.ItemsSource = null;
+                currentReaderId = 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка при удалении: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

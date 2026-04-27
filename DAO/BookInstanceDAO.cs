@@ -14,7 +14,7 @@ namespace biblioteka.DAO
             {
                 connection.Open();
                 string query = @"
-                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price
+                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price, WriteOffActID
                     FROM BookInstances 
                     ORDER BY InventoryNumber";
                 using (var cmd = new SqlCommand(query, connection))
@@ -35,7 +35,7 @@ namespace biblioteka.DAO
             {
                 connection.Open();
                 string query = @"
-                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price
+                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price, WriteOffActID
                     FROM BookInstances 
                     WHERE ID = @ID";
                 using (var cmd = new SqlCommand(query, connection))
@@ -44,9 +44,7 @@ namespace biblioteka.DAO
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
-                        {
                             return MapReaderToEntity(reader);
-                        }
                         return null;
                     }
                 }
@@ -60,7 +58,7 @@ namespace biblioteka.DAO
             {
                 connection.Open();
                 string query = @"
-                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price
+                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price, WriteOffActID
                     FROM BookInstances 
                     WHERE BookID = @BookID
                     ORDER BY InventoryNumber";
@@ -86,7 +84,7 @@ namespace biblioteka.DAO
             {
                 connection.Open();
                 string query = @"
-                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price
+                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price, WriteOffActID
                     FROM BookInstances 
                     WHERE BookID = @BookID AND Status = N'Доступна'
                     ORDER BY InventoryNumber";
@@ -112,7 +110,7 @@ namespace biblioteka.DAO
             {
                 connection.Open();
                 string query = @"
-                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price
+                    SELECT ID, BookID, InventoryNumber, Status, AcquisitionDate, InvoiceNumber, CanBeSold, Price, WriteOffActID
                     FROM BookInstances 
                     WHERE BookID = @BookID AND Status = N'Доступна' AND CanBeSold = 1
                     ORDER BY InventoryNumber";
@@ -131,14 +129,35 @@ namespace biblioteka.DAO
             return list;
         }
 
+        public int GetNextSequenceNumber(int bookId)
+        {
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = "SELECT COUNT(*) FROM BookInstances WHERE BookID = @BookID";
+                using (var cmd = new SqlCommand(query, connection))
+                {
+                    cmd.Parameters.AddWithValue("@BookID", bookId);
+                    int count = (int)cmd.ExecuteScalar();
+                    return count + 1;
+                }
+            }
+        }
+
+        public string GenerateInventoryNumber(int bookId)
+        {
+            int sequence = GetNextSequenceNumber(bookId);
+            return $"Б-{bookId:0000}-{sequence:0000}";
+        }
+
         public void Insert(BookInstanceEntity instance)
         {
             using (var connection = DatabaseHelper.GetConnection())
             {
                 connection.Open();
                 string query = @"
-                    INSERT INTO BookInstances (BookID, InventoryNumber, Status, CanBeSold, Price)
-                    VALUES (@BookID, @InventoryNumber, @Status, @CanBeSold, @Price)";
+                    INSERT INTO BookInstances (BookID, InventoryNumber, Status, CanBeSold, Price, InvoiceNumber, AcquisitionDate)
+                    VALUES (@BookID, @InventoryNumber, @Status, @CanBeSold, @Price, @InvoiceNumber, @AcquisitionDate)";
                 using (var cmd = new SqlCommand(query, connection))
                 {
                     cmd.Parameters.AddWithValue("@BookID", instance.BookID);
@@ -146,6 +165,8 @@ namespace biblioteka.DAO
                     cmd.Parameters.AddWithValue("@Status", instance.Status ?? "Доступна");
                     cmd.Parameters.AddWithValue("@CanBeSold", instance.CanBeSold);
                     cmd.Parameters.AddWithValue("@Price", instance.Price);
+                    cmd.Parameters.AddWithValue("@InvoiceNumber", (object)instance.InvoiceNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@AcquisitionDate", (object)instance.AcquisitionDate ?? DBNull.Value);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -155,13 +176,33 @@ namespace biblioteka.DAO
         {
             for (int i = 0; i < quantity; i++)
             {
+                string inventoryNumber = GenerateInventoryNumber(bookId);
                 var instance = new BookInstanceEntity
                 {
                     BookID = bookId,
-                    InventoryNumber = $"{bookId}-{i + 1:000}",
+                    InventoryNumber = inventoryNumber,
                     Status = "Доступна",
                     CanBeSold = true,
                     Price = price
+                };
+                Insert(instance);
+            }
+        }
+
+        public void InsertInstances(int bookId, int quantity, decimal price, string invoiceNumber, DateTime acquisitionDate)
+        {
+            for (int i = 0; i < quantity; i++)
+            {
+                string inventoryNumber = GenerateInventoryNumber(bookId);
+                var instance = new BookInstanceEntity
+                {
+                    BookID = bookId,
+                    InventoryNumber = inventoryNumber,
+                    Status = "Доступна",
+                    CanBeSold = true,
+                    Price = price,
+                    InvoiceNumber = invoiceNumber,
+                    AcquisitionDate = acquisitionDate
                 };
                 Insert(instance);
             }
@@ -174,11 +215,9 @@ namespace biblioteka.DAO
                 connection.Open();
                 string query = @"
                     UPDATE BookInstances 
-                    SET BookID = @BookID, 
-                        InventoryNumber = @InventoryNumber, 
-                        Status = @Status, 
-                        CanBeSold = @CanBeSold,
-                        Price = @Price
+                    SET BookID = @BookID, InventoryNumber = @InventoryNumber, Status = @Status, 
+                        CanBeSold = @CanBeSold, Price = @Price, InvoiceNumber = @InvoiceNumber,
+                        AcquisitionDate = @AcquisitionDate, WriteOffActID = @WriteOffActID
                     WHERE ID = @ID";
                 using (var cmd = new SqlCommand(query, connection))
                 {
@@ -188,6 +227,9 @@ namespace biblioteka.DAO
                     cmd.Parameters.AddWithValue("@Status", instance.Status);
                     cmd.Parameters.AddWithValue("@CanBeSold", instance.CanBeSold);
                     cmd.Parameters.AddWithValue("@Price", instance.Price);
+                    cmd.Parameters.AddWithValue("@InvoiceNumber", (object)instance.InvoiceNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@AcquisitionDate", (object)instance.AcquisitionDate ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@WriteOffActID", (object)instance.WriteOffActID ?? DBNull.Value);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -299,21 +341,15 @@ namespace biblioteka.DAO
             }
         }
 
-        public bool IsInventoryNumberExists(string inventoryNumber, int? excludeId = null)
+        public bool IsInvoiceNumberExists(string invoiceNumber)
         {
             using (var connection = DatabaseHelper.GetConnection())
             {
                 connection.Open();
-                string query = "SELECT COUNT(*) FROM BookInstances WHERE InventoryNumber = @InventoryNumber";
-                if (excludeId.HasValue)
-                    query += " AND ID != @ExcludeId";
-
+                string query = "SELECT COUNT(*) FROM BookInstances WHERE InvoiceNumber = @InvoiceNumber";
                 using (var cmd = new SqlCommand(query, connection))
                 {
-                    cmd.Parameters.AddWithValue("@InventoryNumber", inventoryNumber);
-                    if (excludeId.HasValue)
-                        cmd.Parameters.AddWithValue("@ExcludeId", excludeId.Value);
-
+                    cmd.Parameters.AddWithValue("@InvoiceNumber", invoiceNumber);
                     int count = (int)cmd.ExecuteScalar();
                     return count > 0;
                 }
@@ -331,7 +367,8 @@ namespace biblioteka.DAO
                 AcquisitionDate = reader.IsDBNull(4) ? (DateTime?)null : reader.GetDateTime(4),
                 InvoiceNumber = reader.IsDBNull(5) ? null : reader.GetString(5),
                 CanBeSold = reader.GetBoolean(6),
-                Price = reader.GetDecimal(7)
+                Price = reader.GetDecimal(7),
+                WriteOffActID = reader.IsDBNull(8) ? (int?)null : reader.GetInt32(8)
             };
         }
     }

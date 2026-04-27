@@ -116,6 +116,7 @@
     <Compile Include="AddUDKWindow.xaml.cs">
       <DependentUpon>AddUDKWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="BoolToYesNoConverter.cs" />
     <Compile Include="DAO\AuthorDAO.cs" />
     <Compile Include="DAO\BookDAO.cs" />
     <Compile Include="DAO\BookInstanceDAO.cs" />
@@ -145,6 +146,9 @@
     <Compile Include="EditBookWindow.xaml.cs">
       <DependentUpon>EditBookWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="EditInstanceDialog.xaml.cs">
+      <DependentUpon>EditInstanceDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="EditUDKWindow.xaml.cs">
       <DependentUpon>EditUDKWindow.xaml</DependentUpon>
     </Compile>
@@ -161,6 +165,9 @@
     <Compile Include="Entities\WriteOffActEntity.cs" />
     <Compile Include="Entities\WriteOffActWithCount.cs" />
     <Compile Include="GreaterThanConverter.cs" />
+    <Compile Include="InvoiceAddWindow.xaml.cs">
+      <DependentUpon>InvoiceAddWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="OverdueLoansWindow.xaml.cs">
       <DependentUpon>OverdueLoansWindow.xaml</DependentUpon>
     </Compile>
@@ -203,11 +210,19 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="EditInstanceDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="EditUDKWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="EditWriteOffWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="InvoiceAddWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

@@ -15,13 +15,14 @@ namespace biblioteka
         private readonly BookService _bookService;
         private readonly UDKService _udkService;
         private readonly AuthorService _authorService;
+        private readonly BookInstanceService _instanceService;
 
         private List<UDKDto> _udkList;
         private List<AuthorDto> _authorsList;
         private List<AuthorDto> _selectedAuthors = new List<AuthorDto>();
         private int _selectedUdkId = -1;
-        private int _availableInstancesCount = 0;
         private BookDto _currentBookDto;
+        private List<BookInstanceDto> _instances;
 
         public event EventHandler BookUpdated;
 
@@ -32,6 +33,7 @@ namespace biblioteka
             _bookService = new BookService();
             _udkService = new UDKService();
             _authorService = new AuthorService();
+            _instanceService = new BookInstanceService();
 
             SelectedAuthorsList.ItemsSource = _selectedAuthors;
             Loaded += (s, e) => LoadData();
@@ -58,19 +60,17 @@ namespace biblioteka
 
                 _selectedAuthors.Clear();
                 foreach (var author in _currentBookDto.Authors)
-                {
                     _selectedAuthors.Add(author);
-                }
 
                 _selectedUdkId = _currentBookDto.UdkId;
                 var udk = _udkList.FirstOrDefault(u => u.Id == _selectedUdkId);
                 if (udk != null)
                     UDKTextBox.Text = udk.Code;
 
-                _availableInstancesCount = _currentBookDto.AvailableInstances;
-                InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
                 IdentifierLabel.Text = $"ID: {_bookId}";
                 SelectedAuthorsList.Items.Refresh();
+
+                LoadInstances();
             }
             catch (Exception ex)
             {
@@ -78,6 +78,27 @@ namespace biblioteka
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
             }
+        }
+
+        private void LoadInstances()
+        {
+            try
+            {
+                _instances = _instanceService.GetByBookId(_bookId);
+                InstancesItemsControl.ItemsSource = _instances;
+                UpdateInstancesStats();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ошибка загрузки экземпляров: " + ex.Message);
+            }
+        }
+
+        private void UpdateInstancesStats()
+        {
+            int total = _instances.Count;
+            int available = _instances.Count(i => i.Status == "Доступна");
+            InstancesStatsText.Text = $"Всего: {total} • Доступно: {available}";
         }
 
         private void AuthorsTextBox_MouseDown(object sender, MouseButtonEventArgs e)
@@ -89,9 +110,7 @@ namespace biblioteka
                 menuItem.Click += (s, args) =>
                 {
                     if (s is MenuItem mi && mi.Tag is AuthorDto selectedAuthor)
-                    {
                         AuthorsTextBox.Text = selectedAuthor.FullName;
-                    }
                 };
                 contextMenu.Items.Add(menuItem);
             }
@@ -105,11 +124,7 @@ namespace biblioteka
             var contextMenu = new ContextMenu();
             foreach (var udk in _udkList)
             {
-                var menuItem = new MenuItem
-                {
-                    Header = udk.Code,
-                    Tag = udk.Id
-                };
+                var menuItem = new MenuItem { Header = udk.Code, Tag = udk.Id };
                 menuItem.Click += (s, args) =>
                 {
                     if (s is MenuItem mi)
@@ -133,9 +148,7 @@ namespace biblioteka
 
             var author = _authorsList.FirstOrDefault(a => a.FullName.Equals(authorName, StringComparison.OrdinalIgnoreCase));
             if (author == null)
-            {
                 author = new AuthorDto { FullName = authorName };
-            }
 
             if (!_selectedAuthors.Any(a => a.FullName.Equals(author.FullName, StringComparison.OrdinalIgnoreCase)))
             {
@@ -160,37 +173,23 @@ namespace biblioteka
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {
+                LoadInstances();
                 _currentBookDto = _bookService.GetBookById(_bookId);
-                _availableInstancesCount = _currentBookDto.AvailableInstances;
-                InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
                 BookUpdated?.Invoke(this, EventArgs.Empty);
             }
         }
 
-        private void RemoveInstance_Click(object sender, RoutedEventArgs e)
+        private void EditInstance_Click(object sender, RoutedEventArgs e)
         {
-            if (_availableInstancesCount == 0)
+            if (sender is Button btn && btn.Tag is BookInstanceDto instance)
             {
-                MessageBox.Show("Нет доступных экземпляров", "Внимание", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            if (MessageBox.Show("Удалить один доступный экземпляр?", "Подтверждение",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-                return;
-
-            try
-            {
-                _bookService.RemoveAvailableInstance(_bookId);
-                _currentBookDto = _bookService.GetBookById(_bookId);
-                _availableInstancesCount = _currentBookDto.AvailableInstances;
-                InstancesCountText.Text = $"Доступно экземпляров: {_availableInstancesCount}";
-                BookUpdated?.Invoke(this, EventArgs.Empty);
-                MessageBox.Show("Экземпляр удалён!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                var dialog = new EditInstanceDialog(instance);
+                dialog.Owner = this;
+                if (dialog.ShowDialog() == true)
+                {
+                    LoadInstances();
+                    _currentBookDto = _bookService.GetBookById(_bookId);
+                }
             }
         }
 

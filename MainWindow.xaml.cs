@@ -229,6 +229,25 @@ namespace biblioteka
             }
         }
 
+        private void InvoiceAdd_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var window = new InvoiceAddWindow();
+                window.Owner = this;
+                if (window.ShowDialog() == true)
+                {
+                    LoadBooks();
+                    LoadStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия окна накладной: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void WriteOff_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -277,7 +296,15 @@ namespace biblioteka
 
         private void WriteOffHistory_Click(object sender, RoutedEventArgs e)
         {
-            new WriteOffHistoryWindow().ShowDialog();
+            try
+            {
+                new WriteOffHistoryWindow().ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия истории списаний: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void OverdueLoans_Click(object sender, RoutedEventArgs e)

@@ -125,9 +125,13 @@ namespace biblioteka.Services
             if (issue.PlannedReturnDate >= DateTime.Today)
                 return 0;
 
+            // Получаем цену экземпляра
+            var instance = _instanceDAO.GetById(issue.InstanceID);
+            if (instance == null) return 0;
+
             int daysOverdue = (DateTime.Today - issue.PlannedReturnDate).Days;
-            decimal finePerDay = 1.00m; // 1 BYN за день просрочки
-            return daysOverdue * finePerDay;
+            decimal rate = 0.005m; // 0.5% от цены за день
+            return daysOverdue * instance.Price * rate;
         }
 
         private IssuedBookDto MapToDto(IssuedBookEntity e)

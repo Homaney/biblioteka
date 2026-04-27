@@ -68,20 +68,15 @@ namespace biblioteka.Services
 			_readerDAO.Update(entity);
 		}
 
-		public void Delete(int id)
-		{
-			// Проверяем, есть ли у читателя активные выдачи
-			if (_readerDAO.HasActiveIssues(id))
-				throw new InvalidOperationException("Нельзя удалить читателя, у которого есть невозвращённые книги");
+        public void Delete(int id)
+        {
+            if (_readerDAO.HasActiveIssues(id))
+                throw new InvalidOperationException("Нельзя удалить читателя, у которого есть невозвращённые книги");
 
-			// Проверяем, есть ли у читателя покупки
-			if (_readerDAO.HasSales(id))
-				throw new InvalidOperationException("Нельзя удалить читателя, у которого есть история покупок");
+            _readerDAO.Delete(id);
+        }
 
-			_readerDAO.Delete(id);
-		}
-
-		public int GetTotalCount()
+        public int GetTotalCount()
 		{
 			return _readerDAO.GetTotalCount();
 		}

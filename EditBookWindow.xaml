@@ -1,15 +1,15 @@
 ﻿<Window x:Class="biblioteka.EditBookWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:biblioteka"
         Title="Редактирование книги"
-        Height="691" Width="550"
+        Height="810" Width="620"
         WindowStartupLocation="CenterOwner"
         Background="#0F0F0F"
         FontFamily="Segoe UI"
         ResizeMode="NoResize">
 
     <Window.Resources>
-        <!-- Цветовая палитра (без изменений) -->
         <SolidColorBrush x:Key="PrimaryPurple" Color="#8B5CF6"/>
         <SolidColorBrush x:Key="PrimaryPurpleDark" Color="#7C3AED"/>
         <SolidColorBrush x:Key="Success" Color="#10B981"/>
@@ -26,7 +26,8 @@
         <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA"/>
         <SolidColorBrush x:Key="TextTertiary" Color="#71717A"/>
 
-        <!-- Стиль для TextBox - уменьшенная высота -->
+        <local:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
+
         <Style x:Key="ModernTextBox" TargetType="TextBox">
             <Setter Property="Background" Value="{StaticResource CardBackground}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
@@ -59,14 +60,12 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для ComboBox-like TextBox со стрелочкой -->
         <Style x:Key="ComboBoxLikeTextBox" TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
             <Setter Property="IsReadOnly" Value="True"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Padding" Value="8,4,24,4"/>
         </Style>
 
-        <!-- Стиль для кликабельного Border -->
         <Style x:Key="ClickableBorder" TargetType="Border">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="Transparent"/>
@@ -93,9 +92,6 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="{StaticResource PrimaryPurpleDark}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#6D28D9"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -128,7 +124,6 @@
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="6,3"/>
-            <Setter Property="FontSize" Value="10"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Height" Value="20"/>
             <Setter Property="Template">
@@ -142,13 +137,13 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="14"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{TemplateBinding Content}" 
-                                           Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Margin="4,0,2,0"
-                                           FontSize="10"/>
-                                <TextBlock Text="×" 
-                                           Grid.Column="1"
+                                <ContentPresenter Grid.Column="0"
+                                                  Content="{TemplateBinding Content}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="4,0,2,0"
+                                                  TextElement.FontSize="10"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="×" 
                                            FontWeight="Bold"
                                            FontSize="11"
                                            HorizontalAlignment="Center"
@@ -164,13 +159,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
     </Window.Resources>
 
     <Border Margin="8" Background="{StaticResource CardBackground}" CornerRadius="8" BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="12" MaxWidth="520">
-                <!-- Заголовок -->
+            <StackPanel Margin="12" MaxWidth="560">
                 <TextBlock Text="✏️ Редактирование книги" 
                           FontSize="20" 
                           FontWeight="Bold"
@@ -178,7 +171,6 @@
                           HorizontalAlignment="Center" 
                           Margin="0,0,0,8"/>
 
-                <!-- ID книги -->
                 <TextBlock x:Name="IdentifierLabel" 
                           Text="ID: " 
                           FontSize="13" 
@@ -187,7 +179,6 @@
                           HorizontalAlignment="Center" 
                           Margin="0,0,0,8"/>
 
-                <!-- Название -->
                 <TextBlock Text="Название книги" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="11" 
@@ -199,20 +190,16 @@
                         GotFocus="TextBox_GotFocus"
                         Margin="0,0,0,4"/>
 
-                <!-- Авторы -->
                 <TextBlock Text="Авторы" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="11" 
                           FontWeight="SemiBold"
                           Margin="0,4,0,2"/>
-
                 <Grid Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-
-                    <!-- Поле выбора автора со стрелочкой -->
                     <Border Grid.Column="0" 
                             Style="{StaticResource ClickableBorder}"
                             MouseDown="AuthorsTextBox_MouseDown">
@@ -223,9 +210,7 @@
                                      Tag="Выберите автора..."
                                      IsHitTestVisible="False"
                                      GotFocus="TextBox_GotFocus"/>
-                            <!-- Стрелочка -->
-                            <Path x:Name="AuthorsArrow"
-                                  Data="M0,0 L4,4 8,0 z"
+                            <Path Data="M0,0 L4,4 8,0 z"
                                   Fill="{StaticResource TextSecondary}"
                                   HorizontalAlignment="Right"
                                   VerticalAlignment="Center"
@@ -236,7 +221,6 @@
                                   IsHitTestVisible="False"/>
                         </Grid>
                     </Border>
-
                     <Button Content="➕ Добавить" 
                             Grid.Column="1" 
                             Margin="5,0,0,0"
@@ -246,12 +230,10 @@
                             Height="32"/>
                 </Grid>
 
-                <!-- Выбранные авторы -->
                 <TextBlock Text="Выбранные авторы:" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="10" 
                           Margin="0,4,0,2"/>
-
                 <Border Background="{StaticResource CardBackground}" 
                         BorderBrush="{StaticResource CardBorder}" 
                         BorderThickness="1" 
@@ -280,14 +262,11 @@
                     </ScrollViewer>
                 </Border>
 
-                <!-- УДК -->
                 <TextBlock Text="УДК" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="11" 
                           FontWeight="SemiBold"
                           Margin="0,0,0,2"/>
-
-                <!-- Поле выбора УДК со стрелочкой -->
                 <Border Style="{StaticResource ClickableBorder}" 
                         MouseDown="UDKTextBox_MouseDown">
                     <Grid>
@@ -297,9 +276,7 @@
                                  Tag="Выберите УДК..."
                                  IsHitTestVisible="False"
                                  GotFocus="TextBox_GotFocus"/>
-                        <!-- Стрелочка -->
-                        <Path x:Name="UDKArrow"
-                              Data="M0,0 L4,4 8,0 z"
+                        <Path Data="M0,0 L4,4 8,0 z"
                               Fill="{StaticResource TextSecondary}"
                               HorizontalAlignment="Right"
                               VerticalAlignment="Center"
@@ -311,7 +288,6 @@
                     </Grid>
                 </Border>
 
-                <!-- Год -->
                 <TextBlock Text="Год издания" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="11" 
@@ -323,7 +299,6 @@
                         Margin="0,0,0,4"
                         GotFocus="TextBox_GotFocus"/>
 
-                <!-- Описание -->
                 <TextBlock Text="Описание" 
                           Foreground="{StaticResource TextSecondary}" 
                           FontSize="11" 
@@ -340,59 +315,67 @@
                         VerticalContentAlignment="Top"
                         Padding="8,3"/>
 
-                <!-- Управление экземплярами -->
+                <!-- Список экземпляров -->
+                <TextBlock Text="📚 Экземпляры книги" 
+                          Foreground="{StaticResource PrimaryPurple}" 
+                          FontSize="14" 
+                          FontWeight="Bold"
+                          Margin="0,10,0,5"/>
                 <Border Background="{StaticResource CardBackground}" 
-                        BorderBrush="{StaticResource PrimaryPurple}" 
+                        BorderBrush="{StaticResource CardBorder}" 
                         BorderThickness="1" 
                         CornerRadius="6" 
                         Padding="8" 
-                        Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="📚 Управление экземплярами" 
-                                  Foreground="{StaticResource PrimaryPurple}" 
-                                  FontSize="12" 
-                                  FontWeight="Bold"
-                                  Margin="0,0,0,5"/>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock x:Name="InstancesCountText"
-                                      Text="Загрузка..."
-                                      Foreground="{StaticResource TextSecondary}"
-                                      FontSize="11"
-                                      Grid.Column="0"
-                                      VerticalAlignment="Center"/>
-
-                            <Button Content="➕ Добавить" 
-                                    Style="{StaticResource SuccessButton}"
-                                    Grid.Column="1"
-                                    Margin="5,0,3,0"
-                                    Click="AddInstance_Click"
-                                    Padding="8,3"
-                                    Height="30"/>
-
-                            <Button Content="🗑️ Удалить" 
-                                    Style="{StaticResource DangerButton}"
-                                    Grid.Column="2"
-                                    Margin="3,0,0,0"
-                                    Click="RemoveInstance_Click"
-                                    Padding="8,3"
-                                    Height="30"/>
-                        </Grid>
-
-                        <TextBlock Text="* Добавляет/удаляет экземпляры со статусом 'Доступно'" 
-                                  Foreground="{StaticResource TextTertiary}" 
-                                  FontSize="9" 
-                                  Margin="0,4,0,0"/>
-                    </StackPanel>
+                        Margin="0,0,0,10">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
+                        <ItemsControl x:Name="InstancesItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#252525" CornerRadius="4" Padding="8,6" Margin="0,0,0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding InventoryNumber}" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <TextBlock Text="Статус: " Foreground="{StaticResource TextSecondary}" FontSize="11"/>
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextPrimary}" FontSize="11"/>
+                                                    <TextBlock Text=" • Цена: " Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="10,0,0,0"/>
+                                                    <TextBlock Text="{Binding Price, StringFormat={}{0:F2} BYN}" Foreground="{StaticResource Success}" FontSize="11" FontWeight="SemiBold"/>
+                                                    <TextBlock Text=" • Продажа: " Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="10,0,0,0"/>
+                                                    <TextBlock Text="{Binding CanBeSold, Converter={StaticResource BoolToYesNoConverter}}" Foreground="{StaticResource Info}" FontSize="11"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="✏️" Width="28" Height="28" 
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Click="EditInstance_Click" Tag="{Binding}"
+                                                        Margin="0,0,5,0" Padding="0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Border>
 
-                <!-- Кнопка сохранения -->
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="InstancesStatsText" Text="" Foreground="{StaticResource TextSecondary}" FontSize="11" VerticalAlignment="Center"/>
+                    <Button Content="➕ Добавить экземпляр" 
+                            Style="{StaticResource SuccessButton}"
+                            Grid.Column="1"
+                            Click="AddInstance_Click"
+                            Padding="10,6"
+                            Height="32"/>
+                </Grid>
+
                 <Button Content="💾 Сохранить изменения" 
                         Style="{StaticResource SuccessButton}"
                         Click="SaveChanges_Click"

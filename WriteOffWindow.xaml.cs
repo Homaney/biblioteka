@@ -48,8 +48,16 @@ namespace biblioteka
                             InstanceId = inst.Id,
                             InventoryNumber = inst.InventoryNumber,
                             BookTitle = book.Title,
+                            Price = inst.Price,   // сохраняем цену
                             IsSelected = false
                         });
+                        // Подписываемся на изменение IsSelected для динамической суммы
+                        var item = _instanceItems.Last();
+                        item.PropertyChanged += (s, e) =>
+                        {
+                            if (e.PropertyName == nameof(InstanceSelectionItem.IsSelected))
+                                UpdateTotalPrice();
+                        };
                     }
                 }
 
@@ -59,6 +67,16 @@ namespace biblioteka
             {
                 MessageBox.Show("Ошибка загрузки экземпляров: " + ex.Message);
             }
+        }
+
+        private void UpdateTotalPrice()
+        {
+            decimal total = 0;
+            foreach (var item in _instanceItems.Where(i => i.IsSelected))
+            {
+                total += item.Price;
+            }
+            TotalWriteOffPriceText.Text = $"Сумма списания: {total:F2} BYN";
         }
 
         private void WriteOffButton_Click(object sender, RoutedEventArgs e)
@@ -89,6 +107,9 @@ namespace biblioteka
                 return;
             }
 
+            // Расчёт суммы списания
+            decimal totalPrice = selectedInstances.Sum(item => item.Price);
+
             try
             {
                 var dto = new WriteOffActCreateDto
@@ -101,7 +122,8 @@ namespace biblioteka
 
                 _writeOffService.CreateWriteOffAct(dto);
 
-                MessageBox.Show("Списание успешно оформлено!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Списание успешно оформлено!\nСписано экземпляров: {selectedInstances.Count}\nОбщая стоимость: {totalPrice:F2} BYN",
+                    "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();
             }
@@ -118,6 +140,7 @@ namespace biblioteka
             public int InstanceId { get; set; }
             public string InventoryNumber { get; set; }
             public string BookTitle { get; set; }
+            public decimal Price { get; set; }
 
             public bool IsSelected
             {

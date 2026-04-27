@@ -45,6 +45,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <TextBlock Text="📄 Акт списания" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,20"/>
@@ -73,6 +74,13 @@
             </ListBox.ItemTemplate>
         </ListBox>
 
-        <Button Grid.Row="3" Content="✅ Оформить списание" Style="{StaticResource SuccessButton}" Width="200" Click="WriteOffButton_Click" HorizontalAlignment="Right"/>
+        <TextBlock x:Name="TotalWriteOffPriceText" Grid.Row="3"
+                   Text="Сумма списания: 0,00 BYN" 
+                   Foreground="{StaticResource Success}" 
+                   FontSize="14" FontWeight="SemiBold"
+                   Margin="0,0,0,10"
+                   HorizontalAlignment="Right"/>
+
+        <Button Grid.Row="4" Content="✅ Оформить списание" Style="{StaticResource SuccessButton}" Width="200" Click="WriteOffButton_Click" HorizontalAlignment="Right"/>
     </Grid>
 </Window>
